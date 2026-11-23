@@ -3,3 +3,6 @@ app:
   security:
     jwt:
       secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQta2V5LWZvci1pbnRlZ3JhdGlvbi10ZXN0cw==
+  batch:
+    import-dir: ${java.io.tmpdir}/insurance-test/imports
+    report-dir: ${java.io.tmpdir}/insurance-test/reports

@@ -73,6 +73,15 @@ public class PlsqlFixtures {
         return id;
     }
 
+    public void contact(long customerId, String email, String phone) {
+        jdbc.update("UPDATE customer SET email = ?, phone = ? WHERE id = ?", email, phone, customerId);
+    }
+
+    /** Installment plan through PKG_PREMIUM (equal monthly installments from the start date, all PENDING). */
+    public void installments(long policyId, int count) {
+        jdbc.update("BEGIN pkg_premium.generate_installments(?, ?); END;", policyId, count);
+    }
+
     private long nextId(String sequence) {
         return jdbc.queryForObject("SELECT " + sequence + ".NEXTVAL FROM dual", Long.class);
     }
