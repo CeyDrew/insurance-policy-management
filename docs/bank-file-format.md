@@ -82,18 +82,24 @@ uygulanmasını önlemek için kontrol, uygulama adımından önce ayrı bir ad�
 
 ## Örnek
 
-Talep dosyası (dolgular kısaltılmıştır):
+Uygulamanın ürettiği bir talep dosyası (sağdaki boşluk dolguları kısaltılmıştır):
 
 ```
-H009920261123000000004 2TLSIGORTA-DEMO        ...
-D00000000010000012345KSK-2026-000196     0320261213000000000127512  ...
-D00000000020000012399TRF-2026-000200     0420261215000000000154791  ...
-T0000000002000000000000282303 ...
+H0099202611230000000001TLSIGORTA-DEMO
+D00000000010000000016KNT-2026-000005     0120260803000000000446473
+D00000000020000000028KSK-2026-000008     0920261125000000000318780
+...
+T0000000062000000000019847065
 ```
 
 Bankanın döndürdüğü sonuç dosyasında header'ın dosya tipi `SN` olur ve her detayın 67–68. karakterlerine sonuç
-kodu yazılır (`00`, `51`...).
+kodu yazılır:
 
+```
+H0099202611230000000001SNSIGORTA-DEMO
+D00000000010000000016KNT-2026-000005     012026080300000000044647300
+D00000000020000000028KSK-2026-000008     092026112500000000031878000
+```
 ## Tekrar ve mükerrerlik
 
 - Aynı sonuç dosyası (aynı içerik → aynı SHA-256) ikinci kez yüklenirse reddedilir. Başarısız olmuş

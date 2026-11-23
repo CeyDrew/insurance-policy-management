@@ -11,6 +11,8 @@ migration'ı ile oluşturulur (`V10__create_spring_batch_tables.sql`). Boot'un �
 | `policyExpirationJob` | Süresi dolanları kapatır: yenilenmiş olan `RENEWED`, diğerleri `EXPIRED` | `runDate` | her gün 01:15 |
 | `claimImportJob` | CSV'den toplu hasar ihbarı alır, hatalı satırları raporlar | `inputFile` | — (dosya yüklemesiyle) |
 | `monthlyProductionReportJob` | Aylık prim üretimini ürün/acente bazında Excel'e yazar | `month` (yyyy-MM) | her ayın 1'i 06:00 |
+| `collectionRequestExportJob` | Vadesi gelen taksitler için bankaya sabit uzunluklu tahsilat talep dosyası yazar | `runDate` | — (ekrandan) |
+| `collectionResultImportJob` | Bankanın sonuç dosyasını doğrular, satırları paralel bölümlerle uygular | `fileHash` | — (yükleme, inbox, simülatör) |
 
 Parametre verilmezse `runDate` bugündür, `month` bir önceki aydır. Her manuel çalıştırmaya `launchedAt` parametresi
 eklenir; böylece aynı tarihle job tekrar çalıştırılabilir. Job'lar idempotent yazılmıştır: yenileme teklifi olan
@@ -100,6 +102,76 @@ vergi, brüt prim, iade. Writer bir `ItemStreamWriter`'dır:
 - Step kapanırken toplam satırını ekler.
 - Dosyayı önce geçici bir isimle yazar, sonra `app.batch.report-dir/uretim-raporu-yyyy-MM.xlsx` olarak taşır.
   Yarıda kalan bir çalışma bozuk rapor bırakmaz.
+
+## Banka tahsilat dosyaları
+
+Otomatik ödeme talimatlı taksitler bankayla sabit uzunluklu dosya alışverişiyle tahsil edilir. Dosya formatı:
+[bank-file-format.md](bank-file-format.md). Ekran: **Tahsilat Dosyaları** (ADMIN).
+
+### collectionRequestExportJob (giden dosya)
+
+```
+createRequestFileStep    COLLECTION_FILE kaydı (GENERATING), dosya yolu job context'ine
+writeRequestFileStep     JdbcCursorItemReader
+                           -> CompositeItemWriter
+                                FlatFileItemWriter (FormatterLineAggregator, header + footer callback)
+                                JdbcBatchItemWriter (installment.collection_request_file_id)
+completeRequestFileStep  kayıt sayısı, toplam tutar, SHA-256, GENERATED
+```
+
+- **Seçim:** `ACTIVE`/`SUSPENDED` poliçelerin `PENDING`/`OVERDUE` taksitleri, vadesi `runDate + days-ahead (7)`
+  gününe kadar olanlar. Cevabı beklenen bir taksit (başka bir talep dosyasına bağlı) tekrar istenmez. Reddedilen
+  taksit bir sonraki dosyaya tekrar girer.
+- **Header/trailer:** Header callback dosya numarasını ve tarihi yazar. Trailer, step kapanırken, son chunk commit
+  edildikten sonra veritabanından okunan sayı ve toplamla yazılır. Bu sayede restart sonrasında da doğrudur.
+- **Restart güvenliği:** Reader sorgusu bu dosyaya zaten bağlanmış taksitleri de getirir (`... OR
+  collection_request_file_id = :fileId`). Yeniden başlatılan step, kaldığı yere sayarak atladığında tam olarak
+  yazılmış satırları atlar. `FlatFileItemWriter` dosyayı son commit edilen konuma kırpar ve oradan devam eder.
+
+### collectionResultImportJob (gelen dosya)
+
+```
+validateResultFileStep   dosyanın tamamı: header, sıra numaraları, trailer sayısı + toplam tutar
+applyResultsStep         Partitioner: detay satırlarını N aralığa böler (varsayılan 4, en çok 8)
+  applyResultsWorkerStep   FlatFileItemReader (PatternMatchingCompositeLineMapper + FixedLengthTokenizer)
+                           -> PKG_COLLECTION.APPLY_RESULTS (chunk başına tek çağrı, JSON)
+completeResultFileStep   sayaçlar COLLECTION_RESULT'tan, COMPLETED
+```
+
+- **Trailer kontrolü:** Kayıt sayısı veya toplam tutar tutmazsa ilk step hata verir. Dosya `FAILED` olarak kaydedilir
+  (ayrı transaction'da, step rollback'inden etkilenmez), job `FAILED` olur ve **hiçbir satır işlenmez**.
+- **Mükerrer dosya:** Tek identifying job parametresi dosyanın SHA-256'sıdır. Aynı içerik aynı job instance'ı
+  demektir: tamamlanmış bir dosya ikinci kez başlatılamaz (`JobInstanceAlreadyCompleteException`). Servis bunu
+  job'ı başlatmadan önce `DUPLICATE_FILE` ile reddeder. Veritabanında da fonksiyon tabanlı unique index vardır.
+- **Restart:** Uygulama sırasında kesilen dosya `PROCESSING` kalır ve sebebi ekranda görünür. "Yeniden başlat"
+  aynı execution'ı `JobOperator.restart` ile devam ettirir:
+  - Doğrulama step'i tekrar çalışmaz.
+  - Tamamlanmış partition'lar atlanır.
+  - Kesilen partition son commit edilen chunk'tan devam eder.
+  - PL/SQL aynı satırı ikinci kez uygulamaz.
+  - Demo ve test için `app.batch.collection.fail-at-line` (veya testte `CollectionFaultInjector`) belirli bir
+    satırda yapay hata üretir.
+- **Partitioning, multi-threaded step değil:** Çok thread'li tek bir step'te `FlatFileItemReader` paylaşılır,
+  thread-safe değildir ve okuma konumu kaydedilemez, yani restart edilemez. Partition'larda her worker kendi
+  satır aralığını kendi reader'ıyla okur ve kendi konumunu kaydeder. Paralellik ve restart birlikte elde edilir.
+  Aynı poliçenin satırları talep dosyasında art arda yazıldığından çoğunlukla aynı partition'a düşer. Yine de
+  iki partition aynı poliçeyi kilitlerse (ORA-00060) chunk yeniden denenir.
+- **Dosya izleme:** `BATCH_COLLECTION_POLL_INBOX=true` iken `CollectionInboxPoller`, `<collection dir>/inbox/`
+  klasörünü tarar. Son 3 saniyede değişmemiş her dosyayı `inbound/`'a kopyalayıp senkron olarak içe aktarır.
+  Orijinal dosya, sonuca göre `processed/` ya da `error/` klasörüne taşınır. Docker Compose'da açıktır.
+
+### API
+
+| Metot | Yol | Açıklama |
+|---|---|---|
+| GET | `/api/collection-files?direction=&page=&size=` | Talep ve sonuç dosyaları |
+| GET | `/api/collection-files/{id}` | Dosya; sonuç dosyası için red sebepleri, talep için cevap dosyaları |
+| GET | `/api/collection-files/{id}/results?outcome=` | Uygulanan satırlar (tahsil / red / hatalı) |
+| GET | `/api/collection-files/{id}/download` | Dosyayı indir |
+| POST | `/api/collection-files/requests` | Talep dosyası üret |
+| POST | `/api/collection-files/results` | Sonuç dosyası yükle (`multipart/form-data`, en fazla 10 MB) |
+| POST | `/api/collection-files/{id}/bank-answer?partitions=` | Demo: banka simülatörü talebe cevap üretir ve işler |
+| POST | `/api/collection-files/{id}/restart` | Yarıda kalmış içe aktarmayı devam ettir |
 
 ## REST API
 

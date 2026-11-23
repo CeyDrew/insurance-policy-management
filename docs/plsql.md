@@ -13,6 +13,7 @@ Java servis katmanı bu kuralları yeniden yazmaz; paketleri `SimpleJdbcCall` il
 | `PKG_CLAIM` | `R__6_pkg_claim.sql` | Hasar durum akışı, ödeme ve hasarsızlık basamağı güncellemesi |
 | `PKG_PAYMENT` | `R__7_pkg_payment.sql` | Taksit tahsilatı ve askıdaki poliçenin yeniden yürürlüğe girmesi |
 | Raporlama view'ları, `PKG_REPORTING` | `R__8_reporting_views.sql` | Dashboard: kazanılmış prim, hasar/prim oranı, acente performansı, aylık üretim |
+| `PKG_COLLECTION` | `R__9_pkg_collection.sql` | Banka tahsilat sonuç dosyasının satırlarını uygular (tahsil / red / hatalı) |
 
 Paket ve trigger'lar Flyway **repeatable** (`R__`) migration'larıdır: dosya değiştiğinde bir sonraki açılışta
 yeniden derlenir. Tablolar ise sürümlü (`V__`) migration'lardadır.
@@ -132,6 +133,36 @@ stateDiagram-v2
 - Ödenmiş veya iptal edilmiş taksit tahsil edilemez. Tahsilat referansı `TAH-yyyyMMdd-<id>` biçimindedir.
 - Askıdaki (`SUSPENDED`) poliçenin son gecikmiş taksiti ödenince poliçe `PKG_POLICY.CHANGE_STATUS` ile tekrar
   `ACTIVE` olur ve `reactivated = 1` döner. Müşteriye `PAYMENT_RECEIVED` bildirimi yazılır.
+
+`collect_direct_debit(installment_id, reference, paid_by, OUT payment_id)` bankanın otomatik ödeme talimatıyla
+çektiği tutarı `DIRECT_DEBIT` olarak işler. Gişe tahsilatından farkı, taksit sırası kuralının uygulanmamasıdır:
+para banka hesabından çıkmıştır, kaydedilmesi gerekir. Ortak kısım (taksit, ödeme kaydı, bildirim, askıdan
+çıkarma) iki prosedürün de kullandığı `apply_payment` içindedir.
+
+## PKG_COLLECTION
+
+`apply_results(file_id, lines CLOB, applied_by)`, `collectionResultImportJob`'ın her chunk'ını tek çağrıda alır.
+Satırlar bir JSON dizisi olarak gelir, `JSON_TABLE` ile `T_BANK_RESULT_TAB` koleksiyonuna açılır.
+
+| Satır | Sonuç |
+|---|---|
+| Kod `00`, taksit açık | `PKG_PAYMENT.COLLECT_DIRECT_DEBIT`, referans `OTO-<dosya>-<satır>`, sonuç `COLLECTED` |
+| Kod `51` / `54` / `57` / `91` | Taksite red kodu yazılır, talep bağlantısı kaldırılır (bir sonraki talep dosyasına tekrar girer), müşteriye `COLLECTION_REJECTED` bildirimi, sonuç `REJECTED` |
+| Bilinmeyen taksit, poliçe/taksit no veya tutar uyuşmazlığı, geçersiz kod, zaten ödenmiş veya iptal edilmiş taksit | Taksite dokunulmaz, sebep `COLLECTION_RESULT.MESSAGE`'a yazılır, sonuç `ERROR` |
+
+- **Tekrar uygulanmaz:** Aynı dosyanın aynı satırı için `COLLECTION_RESULT` kaydı varsa satır atlanır
+  (`UK_COLLECTION_RESULT_LINE` ile de korunur). Yarıda kesilip yeniden başlatılan bir job çift tahsilat üretmez.
+- **Sayaçlar sonda:** Tahsil, red ve hatalı sayıları ile tahsil edilen tutar `complete_file` ile
+  `COLLECTION_RESULT`'tan hesaplanır. Paralel partition'lar aynı `COLLECTION_FILE` satırını her chunk'ta
+  güncelleyip birbirini kilitlemez.
+- **Mükerrer dosya:** `UX_COLLECTION_FILE_HASH` fonksiyon tabanlı unique index'tir. Başarısız olmamış gelen
+  dosyalarda aynı SHA-256'nın ikinci kez kaydedilmesini engeller. Reddedilen (trailer hatalı) bir dosya engel
+  olmaz, düzeltilmiş hali yüklenebilir.
+
+> Satırlar ilk denemede Oracle nesne tipi (`T_BANK_RESULT`) olarak JDBC'nin `createStruct` /
+> `createOracleArray` API'siyle gönderiliyordu. Testcontainers'daki slim Oracle imajında sürücü tip tanımını
+> çözemedi ve bağlantılar koptu. JSON + `JSON_TABLE` aynı tek round-trip'i sürücüye özel API olmadan sağlıyor;
+> tutarlar JSON number olduğu için oturumun NLS ayarından (ondalık ayracı) da etkilenmiyor.
 
 ## Raporlama
 
