@@ -74,7 +74,8 @@ CREATE OR REPLACE PACKAGE BODY pkg_payment AS
         p_payment_id := payment_seq.NEXTVAL;
         INSERT INTO payment (id, installment_id, amount, payment_date, payment_method, reference_no, created_by)
         VALUES (p_payment_id, p_installment_id, l_installment.amount, SYSTIMESTAMP, p_payment_method,
-                'PAY-' || LPAD(p_payment_id, 8, '0'), p_paid_by);
+                -- Own prefix: the seed data uses PAY-<installment id> references.
+                'TAH-' || TO_CHAR(SYSDATE, 'YYYYMMDD') || '-' || LPAD(p_payment_id, 8, '0'), p_paid_by);
 
         INSERT INTO notification (customer_id, policy_id, notification_type, channel, recipient, subject, body, created_by)
         SELECT c.id, l_policy.id, 'PAYMENT_RECEIVED',
