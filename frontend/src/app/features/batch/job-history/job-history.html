@@ -1,0 +1,75 @@
+<header class="page-header">
+  <div class="title">
+    <a mat-icon-button routerLink="/batch" aria-label="Batch işleri"
+      ><mat-icon>arrow_back</mat-icon></a
+    >
+    <div>
+      <h1>{{ job.value()?.title ?? name() }}</h1>
+      <span class="mono">{{ name() }}</span>
+    </div>
+  </div>
+</header>
+
+<mat-card appearance="outlined" class="table-card">
+  @if (history.isLoading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (loadError(); as error) {
+    <p class="message error">{{ error }}</p>
+  } @else {
+    <div class="table-scroll">
+      <table mat-table [dataSource]="history.value()?.content ?? []">
+        <ng-container matColumnDef="id">
+          <th mat-header-cell *matHeaderCellDef>#</th>
+          <td mat-cell *matCellDef="let e">
+            <a class="row-link" [routerLink]="['/batch/executions', e.id]">{{ e.id }}</a>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Durum</th>
+          <td mat-cell *matCellDef="let e">
+            <app-batch-status [status]="e.status" [exitCode]="e.exitCode" />
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="parameters">
+          <th mat-header-cell *matHeaderCellDef>Parametre</th>
+          <td mat-cell *matCellDef="let e">{{ describeParameters(e) }}</td>
+        </ng-container>
+        <ng-container matColumnDef="startTime">
+          <th mat-header-cell *matHeaderCellDef>Başlangıç</th>
+          <td mat-cell *matCellDef="let e">{{ e.startTime | date: 'dd.MM.yyyy HH:mm:ss' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="duration">
+          <th mat-header-cell *matHeaderCellDef class="number">Süre</th>
+          <td mat-cell *matCellDef="let e" class="number">{{ e.durationMillis | duration }}</td>
+        </ng-container>
+        <ng-container matColumnDef="read">
+          <th mat-header-cell *matHeaderCellDef class="number">Okunan</th>
+          <td mat-cell *matCellDef="let e" class="number">{{ e.readCount | number }}</td>
+        </ng-container>
+        <ng-container matColumnDef="write">
+          <th mat-header-cell *matHeaderCellDef class="number">Yazılan</th>
+          <td mat-cell *matCellDef="let e" class="number">{{ e.writeCount | number }}</td>
+        </ng-container>
+        <ng-container matColumnDef="skip">
+          <th mat-header-cell *matHeaderCellDef class="number">Atlanan</th>
+          <td mat-cell *matCellDef="let e" class="number">{{ e.skipCount | number }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="message" [attr.colspan]="columns.length">
+            {{ history.isLoading() ? 'Yükleniyor…' : 'Bu iş henüz çalıştırılmadı.' }}
+          </td>
+        </tr>
+      </table>
+    </div>
+    <mat-paginator
+      [length]="history.value()?.totalElements ?? 0"
+      [pageIndex]="history.value()?.page ?? 0"
+      [pageSize]="history.value()?.size ?? 20"
+      [pageSizeOptions]="[10, 20, 50]"
+      (page)="onPage($event)"
+    />
+  }
+</mat-card>
