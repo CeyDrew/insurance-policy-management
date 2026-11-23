@@ -5,6 +5,9 @@ services:
     ports:
       - "${ORACLE_PORT:-1521}:1521"
     environment:
+      # SYSTIMESTAMP/SYSDATE in PL/SQL and column defaults use the server time zone;
+      # it must match the business time zone the application uses.
+      TZ: ${ORACLE_TZ:-Europe/Istanbul}
       ORACLE_PASSWORD: ${ORACLE_PASSWORD:?set ORACLE_PASSWORD in .env}
       APP_USER: ${APP_USER:?set APP_USER in .env}
       APP_USER_PASSWORD: ${APP_USER_PASSWORD:?set APP_USER_PASSWORD in .env}

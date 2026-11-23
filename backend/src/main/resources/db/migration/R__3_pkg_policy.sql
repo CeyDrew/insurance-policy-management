@@ -40,7 +40,8 @@ CREATE OR REPLACE PACKAGE pkg_policy AS
 
     /**
      * No-claims step (hasarsızlık basamağı) for the next term of a vehicle policy: one step up after a
-     * claim-free term, one step down per paid claim, within 1..8. Other products keep their step.
+     * claim-free term (max 8). Paid claims already lowered the current step when they were paid
+     * (PKG_CLAIM.APPLY_PAID_CLAIM_TO_NCD), so a term with claims keeps its step. Other products keep their step.
      */
     FUNCTION next_ncd_step(p_policy_id IN policy.id%TYPE) RETURN NUMBER;
 
@@ -241,7 +242,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_policy AS
         END IF;
 
         SELECT COUNT(*) INTO l_paid_claims FROM claim WHERE policy_id = p_policy_id AND status = 'PAID';
-        RETURN CASE WHEN l_paid_claims = 0 THEN LEAST(l_step + 1, 8) ELSE GREATEST(l_step - l_paid_claims, 1) END;
+        RETURN CASE WHEN l_paid_claims = 0 THEN LEAST(l_step + 1, 8) ELSE l_step END;
     EXCEPTION
         WHEN NO_DATA_FOUND THEN
             pkg_errors.raise_error(pkg_errors.c_not_found, 'POLICY_NOT_FOUND', 'Poliçe bulunamadı: ' || p_policy_id);

@@ -11,6 +11,8 @@ export interface PagedList<T> {
   readonly loading: Signal<boolean>;
   readonly error: Signal<string | null>;
   onPage(event: PageEvent): void;
+  /** Reloads the current page (e.g. after a row was changed), keeping filter and page. */
+  reload(): void;
 }
 
 /**
@@ -29,7 +31,8 @@ export function pagedList<F, T>(
   const loading = signal(true);
   const error = signal<string | null>(null);
 
-  const request = computed(() => ({ filter: filter(), paging: paging() }));
+  const version = signal(0);
+  const request = computed(() => ({ filter: filter(), paging: paging(), version: version() }));
   const page = toSignal(
     toObservable(request).pipe(
       tap(() => {
@@ -55,5 +58,6 @@ export function pagedList<F, T>(
     loading,
     error,
     onPage: (event) => paging.set({ page: event.pageIndex, size: event.pageSize }),
+    reload: () => version.update((v) => v + 1),
   };
 }

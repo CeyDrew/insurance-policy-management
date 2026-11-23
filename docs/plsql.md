@@ -9,6 +9,9 @@ Java servis katmanı bu kuralları yeniden yazmaz; paketleri `SimpleJdbcCall` il
 | `PKG_PREMIUM` | `R__2_pkg_premium.sql` | Tarifeye göre prim hesabı, taksit planı |
 | `PKG_POLICY` | `R__3_pkg_policy.sql` | Durum geçişleri, poliçeleştirme, gün esaslı iade ve iptal |
 | `TRG_POLICY_AUDIT`, `TRG_CLAIM_AUDIT` | `R__4_audit_triggers.sql` | Değişiklikleri `AUDIT_LOG`'a JSON olarak yazar |
+| `PKG_BATCH` | `R__5_pkg_batch.sql` | Büyük hacim için set-based gecikme işaretleme (`BULK COLLECT` / `FORALL`) |
+| `PKG_CLAIM` | `R__6_pkg_claim.sql` | Hasar durum akışı, ödeme ve hasarsızlık basamağı güncellemesi |
+| `PKG_PAYMENT` | `R__7_pkg_payment.sql` | Taksit tahsilatı ve askıdaki poliçenin yeniden yürürlüğe girmesi |
 
 Paket ve trigger'lar Flyway **repeatable** (`R__`) migration'larıdır: dosya değiştiğinde bir sonraki açılışta
 yeniden derlenir. Tablolar ise sürümlü (`V__`) migration'lardadır.
@@ -98,6 +101,43 @@ stateDiagram-v2
 
 Bütün güncellemeler `updated_at`, `updated_by` ve `version` kolonlarını da günceller. Böylece JPA'nın optimistic
 locking'i ve audit kayıtları PL/SQL değişikliklerini de görür.
+
+## PKG_CLAIM
+
+```mermaid
+stateDiagram-v2
+    [*] --> REPORTED: ihbar (Java)
+    REPORTED --> IN_REVIEW: assign_claim
+    IN_REVIEW --> IN_REVIEW: yeniden atama
+    IN_REVIEW --> APPROVED: approve_claim
+    IN_REVIEW --> REJECTED: reject_claim
+    APPROVED --> PAID: pay_claim
+```
+
+- Dosyayı sadece **atanmış hasar uzmanı** (veya ADMIN) onaylayabilir, reddedebilir ve ödeyebilir
+  (`NOT_ASSIGNED_HANDLER`).
+- Dosya sadece aktif bir `CLAIM_HANDLER` veya `ADMIN` kullanıcısına atanabilir. Red gerekçesi zorunludur.
+- Her durum değişikliğinde müşteriye `CLAIM_STATUS_CHANGED` bildirimi yazılır.
+- **`apply_paid_claim_to_ncd`:** Trafik/kasko hasarı ödendiğinde poliçenin hasarsızlık basamağı bir düşer (en az 1).
+  Bu poliçenin henüz poliçeleşmemiş yenileme teklifleri de yeni basamakla `PKG_PREMIUM.CALCULATE` üzerinden yeniden
+  fiyatlanır. Bu yüzden `PKG_POLICY.NEXT_NCD_STEP`, hasarlı bir dönemde basamağı ikinci kez düşürmez; hasarsız
+  dönemde bir artırır.
+
+## PKG_PAYMENT
+
+`pay_installment(installment_id, method, paid_by, OUT payment_id, OUT reactivated)`
+
+- Taksitler sırayla ödenir: önce daha eski vadeli ödenmemiş taksit tahsil edilmelidir (`EARLIER_INSTALLMENT_UNPAID`).
+- Ödenmiş veya iptal edilmiş taksit tahsil edilemez. Tahsilat referansı `TAH-yyyyMMdd-<id>` biçimindedir.
+- Askıdaki (`SUSPENDED`) poliçenin son gecikmiş taksiti ödenince poliçe `PKG_POLICY.CHANGE_STATUS` ile tekrar
+  `ACTIVE` olur ve `reactivated = 1` döner. Müşteriye `PAYMENT_RECEIVED` bildirimi yazılır.
+
+## Saat dilimi
+
+PL/SQL'deki `SYSTIMESTAMP`/`SYSDATE` ve kolon varsayılanları veritabanı sunucusunun saat dilimini kullanır, Java ise
+JVM'in saat dilimiyle yazar. İkisi farklıysa aynı işlemin zamanları ekranda saatlerce kayar. Bu yüzden Oracle
+konteyneri `TZ=Europe/Istanbul` ile çalışır (`docker-compose.yml`, `ORACLE_TZ`). Testcontainers da JVM'in saat
+dilimiyle başlatılır.
 
 ## Hata yönetimi
 

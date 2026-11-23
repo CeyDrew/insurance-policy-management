@@ -77,6 +77,41 @@ export const SHELL_ROUTES: Routes = [
         ],
       },
       {
+        path: 'claims',
+        children: [
+          {
+            path: '',
+            title: 'Hasarlar',
+            loadComponent: () =>
+              import('../../features/claims/claim-list/claim-list').then((m) => m.ClaimList),
+          },
+          {
+            path: 'new',
+            title: 'Hasar ihbarı',
+            canActivate: [roleGuard],
+            data: { roles: ['ADMIN', 'AGENT'] },
+            loadComponent: () =>
+              import('../../features/claims/claim-report/claim-report').then((m) => m.ClaimReport),
+          },
+          {
+            path: ':id',
+            title: 'Hasar dosyası',
+            loadComponent: () =>
+              import('../../features/claims/claim-detail/claim-detail').then((m) => m.ClaimDetail),
+          },
+        ],
+      },
+      {
+        path: 'collections',
+        title: 'Tahsilat',
+        canActivate: [roleGuard],
+        data: { roles: ['ADMIN', 'AGENT'] },
+        loadComponent: () =>
+          import('../../features/payments/collection-list/collection-list').then(
+            (m) => m.CollectionList,
+          ),
+      },
+      {
         path: 'quotes/new',
         title: 'Yeni teklif',
         canActivate: [roleGuard],

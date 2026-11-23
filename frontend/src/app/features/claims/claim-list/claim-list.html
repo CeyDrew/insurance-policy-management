@@ -1,0 +1,92 @@
+<header class="page-header">
+  <h1>Hasarlar</h1>
+  @if (canReport) {
+    <a mat-flat-button routerLink="/claims/new"><mat-icon>add_alert</mat-icon> Hasar ihbarı</a>
+  }
+</header>
+
+<form class="filters" [formGroup]="filter">
+  <mat-form-field class="grow" subscriptSizing="dynamic">
+    <mat-label>Ara</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput formControlName="query" placeholder="Hasar no, poliçe no, müşteri" />
+  </mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Durum</mat-label>
+    <mat-select formControlName="status">
+      <mat-option [value]="null">Tümü</mat-option>
+      @for (option of statusOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <mat-slide-toggle formControlName="mine" class="toggle">Bana atananlar</mat-slide-toggle>
+</form>
+
+<mat-card appearance="outlined" class="table-card">
+  @if (list.loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (list.error(); as error) {
+    <p class="message error">{{ error }}</p>
+  } @else {
+    <div class="table-scroll">
+      <table mat-table [dataSource]="list.rows()">
+        <ng-container matColumnDef="claimNumber">
+          <th mat-header-cell *matHeaderCellDef>Hasar no</th>
+          <td mat-cell *matCellDef="let row">
+            <a class="row-link mono" [routerLink]="['/claims', row.id]">{{ row.claimNumber }}</a>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Durum</th>
+          <td mat-cell *matCellDef="let row"><app-status-badge [status]="row.status" /></td>
+        </ng-container>
+        <ng-container matColumnDef="policyNumber">
+          <th mat-header-cell *matHeaderCellDef>Poliçe</th>
+          <td mat-cell *matCellDef="let row">
+            <a class="row-link mono" [routerLink]="['/policies', row.policyId]">{{
+              row.policyNumber
+            }}</a>
+            <div class="sub">{{ row.productName }}</div>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="customerName">
+          <th mat-header-cell *matHeaderCellDef>Müşteri</th>
+          <td mat-cell *matCellDef="let row">{{ row.customerName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="incidentDate">
+          <th mat-header-cell *matHeaderCellDef>Hasar tarihi</th>
+          <td mat-cell *matCellDef="let row">{{ row.incidentDate | date: 'dd.MM.yyyy' }}</td>
+        </ng-container>
+        <ng-container matColumnDef="estimatedAmount">
+          <th mat-header-cell *matHeaderCellDef class="number">Tahmini / Onaylanan</th>
+          <td mat-cell *matCellDef="let row" class="number">
+            {{ row.estimatedAmount | currency }}
+            @if (row.approvedAmount !== null) {
+              <div class="sub">{{ row.approvedAmount | currency }}</div>
+            }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="handlerName">
+          <th mat-header-cell *matHeaderCellDef>Hasar uzmanı</th>
+          <td mat-cell *matCellDef="let row">{{ row.handlerName ?? '—' }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="message" [attr.colspan]="columns.length">
+            {{ list.loading() ? 'Yükleniyor…' : 'Kriterlere uyan hasar dosyası bulunamadı.' }}
+          </td>
+        </tr>
+      </table>
+    </div>
+    <mat-paginator
+      [length]="list.page()?.totalElements ?? 0"
+      [pageIndex]="list.page()?.page ?? 0"
+      [pageSize]="list.page()?.size ?? 20"
+      [pageSizeOptions]="[10, 20, 50]"
+      (page)="list.onPage($event)"
+    />
+  }
+</mat-card>
