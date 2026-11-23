@@ -1,0 +1,71 @@
+<main class="login-page">
+  <mat-card class="login-card" appearance="outlined">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="brand-icon">shield</mat-icon>
+      <mat-card-title>Poliçe Yönetimi</mat-card-title>
+      <mat-card-subtitle>Devam etmek için giriş yapın</mat-card-subtitle>
+    </mat-card-header>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <mat-card-content class="fields">
+        @if (error(); as message) {
+          <div class="error-banner" role="alert">
+            <mat-icon>error</mat-icon>
+            <span>{{ message }}</span>
+          </div>
+        }
+
+        <mat-form-field appearance="outline">
+          <mat-label>Kullanıcı adı</mat-label>
+          <input matInput formControlName="username" autocomplete="username" cdkFocusInitial />
+          @if (form.controls.username.hasError('required')) {
+            <mat-error>Kullanıcı adı zorunludur.</mat-error>
+          }
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>Şifre</mat-label>
+          <input
+            matInput
+            formControlName="password"
+            autocomplete="current-password"
+            [type]="hidePassword() ? 'password' : 'text'"
+          />
+          <button
+            mat-icon-button
+            matSuffix
+            type="button"
+            [attr.aria-label]="hidePassword() ? 'Şifreyi göster' : 'Şifreyi gizle'"
+            (click)="hidePassword.set(!hidePassword())"
+          >
+            <mat-icon>{{ hidePassword() ? 'visibility' : 'visibility_off' }}</mat-icon>
+          </button>
+          @if (form.controls.password.hasError('required')) {
+            <mat-error>Şifre zorunludur.</mat-error>
+          }
+        </mat-form-field>
+      </mat-card-content>
+
+      <mat-card-actions>
+        <button mat-flat-button type="submit" class="submit" [disabled]="submitting()">
+          @if (submitting()) {
+            <mat-spinner diameter="20" />
+          } @else {
+            Giriş yap
+          }
+        </button>
+      </mat-card-actions>
+    </form>
+
+    <section class="demo" aria-label="Demo hesapları">
+      <p>Demo hesapları (şifre: <code>{{ demoPassword }}</code>)</p>
+      <div class="demo-accounts">
+        @for (account of demoAccounts; track account.username) {
+          <button mat-stroked-button type="button" (click)="fillDemo(account)">
+            {{ roleLabels[account.role] }}
+          </button>
+        }
+      </div>
+    </section>
+  </mat-card>
+</main>

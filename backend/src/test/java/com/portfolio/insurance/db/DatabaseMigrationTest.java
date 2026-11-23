@@ -1,10 +1,8 @@
 package com.portfolio.insurance.db;
 
-import com.portfolio.insurance.TestcontainersConfiguration;
+import com.portfolio.insurance.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,9 +15,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 /**
  * Runs all Flyway migrations against a clean Oracle container and checks the schema and seed data.
  */
-@SpringBootTest
+@IntegrationTest
 @Transactional // roll back rows inserted by constraint tests
-@Import(TestcontainersConfiguration.class)
 class DatabaseMigrationTest {
 
     @Autowired
@@ -33,7 +30,7 @@ class DatabaseMigrationTest {
                 "SELECT COUNT(*) FROM \"flyway_schema_history\" WHERE \"version\" IS NOT NULL", Integer.class);
 
         assertThat(failed).isZero();
-        assertThat(applied).isGreaterThanOrEqualTo(8);
+        assertThat(applied).isGreaterThanOrEqualTo(9);
     }
 
     @Test

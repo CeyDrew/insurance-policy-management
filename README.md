@@ -47,6 +47,25 @@ npm start
 Backend, `.env` dosyasını kök dizinden otomatik okur. Veritabanı şeması Flyway migration'ları ile uygulama
 açılışında oluşturulur.
 
+| Adres | Açıklama |
+|---|---|
+| http://localhost:4200 | Yönetim paneli |
+| http://localhost:8080/swagger-ui.html | API dokümantasyonu (token, Authorize butonuyla girilir) |
+| http://localhost:8080/actuator/health | Sağlık kontrolü |
+
+### Demo kullanıcılar
+
+Hepsinin şifresi `Demo123!`
+
+| Kullanıcı | Rol |
+|---|---|
+| `admin` | Yönetici |
+| `agent`, `agent2` | Acente |
+| `claims` | Hasar uzmanı |
+
+Kimlik doğrulama iki token ile çalışır: kısa ömürlü JWT access token (15 dk) ve her kullanımda yenilenen
+refresh token (7 gün, veritabanında hash'lenmiş). API hataları RFC 7807 `ProblemDetail` formatında döner.
+
 ## Testler
 
 ```bash
