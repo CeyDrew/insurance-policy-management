@@ -21,5 +21,35 @@ services:
       retries: 30
       start_period: 30s
 
+  # Full stack: docker compose up --build  ->  http://localhost:4200
+  backend:
+    build: ./backend
+    container_name: insurance-backend
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      ORACLE_HOST: oracle
+      ORACLE_PORT: 1521
+      ORACLE_SERVICE: ${ORACLE_SERVICE:-FREEPDB1}
+      APP_USER: ${APP_USER:?set APP_USER in .env}
+      APP_USER_PASSWORD: ${APP_USER_PASSWORD:?set APP_USER_PASSWORD in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      BATCH_SCHEDULING_ENABLED: ${BATCH_SCHEDULING_ENABLED:-true}
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    volumes:
+      - app-data:/app/data
+
+  frontend:
+    build: ./frontend
+    container_name: insurance-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-4200}:80"
+
 volumes:
   oracle-data:
+  app-data:

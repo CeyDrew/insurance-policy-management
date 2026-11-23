@@ -99,6 +99,25 @@ class ClaimIntegrationTest {
     }
 
     @Test
+    void searchFiltersByTextPolicyAndStatus() throws Exception {
+        DocumentContext reported = json(report(TODAY.minusDays(3), "Park halindeyken çizilme", "9000"));
+        String claimNumber = reported.read("$.claimNumber");
+        String policyNumber = reported.read("$.policyNumber");
+
+        for (String query : new String[]{claimNumber.toLowerCase(), policyNumber}) {
+            mvc.perform(get("/api/claims").param("query", query).with(AGENT))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.content[*].claimNumber", contains(claimNumber)));
+        }
+        mvc.perform(get("/api/claims").param("policyId", String.valueOf(policy)).param("status", "REPORTED")
+                        .with(AGENT))
+                .andExpect(jsonPath("$.content[*].claimNumber", contains(claimNumber)));
+        mvc.perform(get("/api/claims").param("policyId", String.valueOf(policy)).param("status", "PAID")
+                        .with(AGENT))
+                .andExpect(jsonPath("$.totalElements").value(0));
+    }
+
+    @Test
     void documentsAreValidatedByContentAndDownloadedSafely() throws Exception {
         long id = json(report(TODAY.minusDays(2), "Cam kırılması", "3000")).read("$.id", Long.class);
 
