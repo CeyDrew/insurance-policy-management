@@ -26,6 +26,7 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Müşteriler', icon: 'groups', route: '/customers', roles: [] },
   { label: 'Poliçeler', icon: 'description', route: '/policies', roles: [] },
   { label: 'Yeni Teklif', icon: 'request_quote', route: '/quotes/new', roles: ['ADMIN', 'AGENT'] },
+  { label: 'Batch İşleri', icon: 'pending_actions', route: '/batch', roles: ['ADMIN'] },
   { label: 'Kullanıcılar', icon: 'manage_accounts', route: '/users', roles: ['ADMIN'] },
 ];
 
