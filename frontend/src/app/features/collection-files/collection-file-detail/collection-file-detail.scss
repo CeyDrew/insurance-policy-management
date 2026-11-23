@@ -201,3 +201,8 @@ mat-card-content {
     background: none;
   }
 }
+
+mat-card-subtitle {
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
