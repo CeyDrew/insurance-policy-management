@@ -26,6 +26,7 @@ public interface ClaimMapper {
     @Mapping(target = "status", source = "claim.status")
     @Mapping(target = "policyId", source = "claim.policy.id")
     @Mapping(target = "policyNumber", source = "claim.policy.policyNumber")
+    @Mapping(target = "productCode", source = "claim.policy.product.code")
     @Mapping(target = "productName", source = "claim.policy.product.name")
     @Mapping(target = "policyStatus", source = "claim.policy.status")
     @Mapping(target = "ncdStep", source = "claim.policy.ncdStep")

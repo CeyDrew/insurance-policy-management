@@ -1,5 +1,6 @@
 package com.portfolio.insurance.claim;
 
+import com.portfolio.insurance.reference.ProductCode;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -34,7 +35,8 @@ public final class ClaimDtos {
     }
 
     public record ClaimDetail(Long id, String claimNumber, ClaimStatus status,
-                              Long policyId, String policyNumber, String productName, String policyStatus,
+                              Long policyId, String policyNumber, ProductCode productCode, String productName,
+                              String policyStatus,
                               Integer ncdStep, Long customerId, String customerName, String insuredObject,
                               LocalDate incidentDate, LocalDateTime reportedAt, String incidentCityName,
                               String description, BigDecimal estimatedAmount, BigDecimal approvedAmount,
