@@ -19,6 +19,23 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+  mvc:
+    problemdetails:
+      enabled: true
+
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      issuer: insurance-api
+      access-token-ttl: 15m
+      refresh-token-ttl: 7d
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    operations-sorter: alpha
+    tags-sorter: alpha
 
 management:
   endpoints:
