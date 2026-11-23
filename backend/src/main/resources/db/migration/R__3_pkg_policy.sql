@@ -38,6 +38,12 @@ CREATE OR REPLACE PACKAGE pkg_policy AS
         p_refund_amount OUT NUMBER
     );
 
+    /**
+     * No-claims step (hasarsızlık basamağı) for the next term of a vehicle policy: one step up after a
+     * claim-free term, one step down per paid claim, within 1..8. Other products keep their step.
+     */
+    FUNCTION next_ncd_step(p_policy_id IN policy.id%TYPE) RETURN NUMBER;
+
 END pkg_policy;
 /
 
@@ -218,6 +224,28 @@ CREATE OR REPLACE PACKAGE BODY pkg_policy AS
          WHERE policy_id = p_policy_id
            AND status IN ('PENDING', 'OVERDUE');
     END cancel_policy;
+
+    FUNCTION next_ncd_step(p_policy_id IN policy.id%TYPE) RETURN NUMBER IS
+        l_step         policy.ncd_step%TYPE;
+        l_product_code product.code%TYPE;
+        l_paid_claims  PLS_INTEGER;
+    BEGIN
+        SELECT p.ncd_step, pr.code
+          INTO l_step, l_product_code
+          FROM policy p
+          JOIN product pr ON pr.id = p.product_id
+         WHERE p.id = p_policy_id;
+
+        IF l_product_code NOT IN ('TRAFFIC', 'CASCO') THEN
+            RETURN l_step;
+        END IF;
+
+        SELECT COUNT(*) INTO l_paid_claims FROM claim WHERE policy_id = p_policy_id AND status = 'PAID';
+        RETURN CASE WHEN l_paid_claims = 0 THEN LEAST(l_step + 1, 8) ELSE GREATEST(l_step - l_paid_claims, 1) END;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            pkg_errors.raise_error(pkg_errors.c_not_found, 'POLICY_NOT_FOUND', 'Poliçe bulunamadı: ' || p_policy_id);
+    END next_ncd_step;
 
 END pkg_policy;
 /
