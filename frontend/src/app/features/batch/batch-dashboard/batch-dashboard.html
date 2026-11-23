@@ -1,0 +1,133 @@
+<header class="page-header">
+  <div>
+    <h1>Batch İşleri</h1>
+    <p class="subtitle">
+      Gece çalışan iş süreçlerinin durumu.
+      @if (anyRunning()) {
+        Çalışan iş var, ekran 2 saniyede bir yenileniyor.
+      }
+    </p>
+  </div>
+  <button
+    mat-stroked-button
+    (click)="jobs.reload(); reports.reload()"
+    [disabled]="jobs.isLoading()"
+  >
+    <mat-icon>refresh</mat-icon> Yenile
+  </button>
+</header>
+
+@if (jobs.isLoading() && !jobs.hasValue()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+}
+
+<section class="job-grid" aria-label="Batch işleri">
+  @for (job of jobs.value() ?? []; track job.name) {
+    <mat-card appearance="outlined" class="job-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="job-icon">{{ icons[job.name] ?? 'settings' }}</mat-icon>
+        <mat-card-title>{{ job.title }}</mat-card-title>
+        <mat-card-subtitle class="mono">{{ job.name }}</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <p class="description">{{ job.description }}</p>
+
+        @if (job.lastExecution; as last) {
+          <div class="last-run">
+            <div class="last-run-header">
+              <span class="label">Son çalışma</span>
+              <app-batch-status [status]="last.status" [exitCode]="last.exitCode" />
+            </div>
+            @if (isRunning(last.status)) {
+              <mat-progress-bar mode="indeterminate" class="running-bar" />
+            }
+            <dl class="stats">
+              <div>
+                <dt>Başlangıç</dt>
+                <dd>{{ last.startTime | date: 'dd.MM.yyyy HH:mm:ss' }}</dd>
+              </div>
+              <div>
+                <dt>Süre</dt>
+                <dd>{{ last.durationMillis | duration }}</dd>
+              </div>
+              <div>
+                <dt>Okunan</dt>
+                <dd>{{ last.readCount | number }}</dd>
+              </div>
+              <div>
+                <dt>Yazılan</dt>
+                <dd>{{ last.writeCount | number }}</dd>
+              </div>
+              <div [class.warn]="last.skipCount > 0">
+                <dt>Atlanan</dt>
+                <dd>{{ last.skipCount | number }}</dd>
+              </div>
+            </dl>
+          </div>
+        } @else {
+          <p class="never">Henüz çalıştırılmadı.</p>
+        }
+      </mat-card-content>
+      <mat-card-actions>
+        @if (job.cron) {
+          <span class="cron" matTooltip="Zamanlanmış çalışma (cron)">
+            <mat-icon>event_repeat</mat-icon><span class="mono">{{ job.cron }}</span>
+          </span>
+        }
+        <span class="spacer"></span>
+        <a mat-button [routerLink]="['/batch/jobs', job.name]">Geçmiş</a>
+        @if (job.lastExecution; as last) {
+          <a mat-button [routerLink]="['/batch/executions', last.id]">Detay</a>
+        }
+        @if (job.name === claimImportJob) {
+          <a mat-flat-button routerLink="/batch/claim-import"
+            ><mat-icon>upload</mat-icon> CSV yükle</a
+          >
+        } @else {
+          <button
+            mat-flat-button
+            (click)="run(job)"
+            [disabled]="launching() === job.name || isRunning(job.lastExecution?.status)"
+          >
+            <mat-icon>play_arrow</mat-icon> Çalıştır
+          </button>
+        }
+      </mat-card-actions>
+    </mat-card>
+  }
+</section>
+
+<mat-card appearance="outlined" class="reports">
+  <div class="section-header">
+    <h2>Raporlar</h2>
+  </div>
+  @if ((reports.value() ?? []).length === 0) {
+    <p class="never">Henüz rapor üretilmedi. "Aylık üretim raporu" işini çalıştırın.</p>
+  } @else {
+    <ul class="report-list">
+      @for (report of reports.value() ?? []; track report.name) {
+        <li>
+          <mat-icon class="xlsx">table_view</mat-icon>
+          <div class="report-name">
+            <span class="mono">{{ report.name }}</span>
+            <small
+              >{{ formatBytes(report.sizeBytes) }} ·
+              {{ report.lastModified | date: 'dd.MM.yyyy HH:mm' }}</small
+            >
+          </div>
+          <button
+            mat-icon-button
+            (click)="download(report)"
+            [attr.aria-label]="report.name + ' indir'"
+            matTooltip="İndir"
+          >
+            <mat-icon>download</mat-icon>
+          </button>
+        </li>
+      }
+    </ul>
+  }
+</mat-card>
