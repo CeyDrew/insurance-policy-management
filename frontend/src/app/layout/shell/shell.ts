@@ -23,6 +23,9 @@ interface NavItem {
 // Further menu items are added as feature modules land (customers, policies, claims, batch...).
 const NAV_ITEMS: NavItem[] = [
   { label: 'Gösterge Paneli', icon: 'dashboard', route: '/dashboard', roles: [] },
+  { label: 'Müşteriler', icon: 'groups', route: '/customers', roles: [] },
+  { label: 'Poliçeler', icon: 'description', route: '/policies', roles: [] },
+  { label: 'Yeni Teklif', icon: 'request_quote', route: '/quotes/new', roles: ['ADMIN', 'AGENT'] },
   { label: 'Kullanıcılar', icon: 'manage_accounts', route: '/users', roles: ['ADMIN'] },
 ];
 
