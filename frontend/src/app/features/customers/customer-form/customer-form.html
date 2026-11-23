@@ -1,0 +1,149 @@
+<header class="page-header">
+  <a
+    mat-icon-button
+    [routerLink]="isEdit ? ['/customers', id()] : ['/customers']"
+    aria-label="Geri"
+  >
+    <mat-icon>arrow_back</mat-icon>
+  </a>
+  <h1>{{ isEdit ? 'Müşteriyi düzenle' : 'Yeni müşteri' }}</h1>
+</header>
+
+<mat-card appearance="outlined">
+  @if (loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  <form [formGroup]="form" (ngSubmit)="save()" novalidate>
+    <mat-card-content>
+      @if (error(); as message) {
+        <div class="error-banner" role="alert">
+          <mat-icon>error</mat-icon>
+          <span>{{ message }}</span>
+        </div>
+      }
+
+      <mat-button-toggle-group
+        formControlName="customerType"
+        aria-label="Müşteri tipi"
+        class="type-toggle"
+      >
+        <mat-button-toggle value="INDIVIDUAL"
+          ><mat-icon>person</mat-icon> Bireysel</mat-button-toggle
+        >
+        <mat-button-toggle value="CORPORATE"
+          ><mat-icon>business</mat-icon> Kurumsal</mat-button-toggle
+        >
+      </mat-button-toggle-group>
+
+      <h2>Kimlik bilgileri</h2>
+      <div class="grid">
+        @if (isIndividual) {
+          <mat-form-field>
+            <mat-label>T.C. kimlik no</mat-label>
+            <input matInput formControlName="nationalId" inputmode="numeric" maxlength="11" />
+            @if (form.controls.nationalId.hasError('required')) {
+              <mat-error>T.C. kimlik no zorunludur.</mat-error>
+            } @else if (form.controls.nationalId.hasError('tckn')) {
+              <mat-error>Geçerli bir T.C. kimlik numarası girin.</mat-error>
+            } @else if (form.controls.nationalId.hasError('server')) {
+              <mat-error>{{ form.controls.nationalId.getError('server') }}</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Ad</mat-label>
+            <input matInput formControlName="firstName" autocomplete="given-name" />
+            <mat-error>Ad zorunludur.</mat-error>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Soyad</mat-label>
+            <input matInput formControlName="lastName" autocomplete="family-name" />
+            <mat-error>Soyad zorunludur.</mat-error>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Doğum tarihi</mat-label>
+            <input
+              matInput
+              [matDatepicker]="birthPicker"
+              formControlName="birthDate"
+              [max]="maxBirthDate"
+            />
+            <mat-datepicker-toggle matIconSuffix [for]="birthPicker" />
+            <mat-datepicker #birthPicker startView="multi-year" />
+            <mat-error>Geçerli bir doğum tarihi girin.</mat-error>
+          </mat-form-field>
+          <mat-form-field>
+            <mat-label>Cinsiyet</mat-label>
+            <mat-select formControlName="gender">
+              <mat-option [value]="null">Belirtilmemiş</mat-option>
+              @for (option of genderOptions; track option.value) {
+                <mat-option [value]="option.value">{{ option.label }}</mat-option>
+              }
+            </mat-select>
+          </mat-form-field>
+        } @else {
+          <mat-form-field>
+            <mat-label>Vergi kimlik no</mat-label>
+            <input matInput formControlName="taxNumber" inputmode="numeric" maxlength="10" />
+            @if (form.controls.taxNumber.hasError('required')) {
+              <mat-error>Vergi kimlik no zorunludur.</mat-error>
+            } @else if (form.controls.taxNumber.hasError('vkn')) {
+              <mat-error>Geçerli bir vergi kimlik numarası girin.</mat-error>
+            } @else if (form.controls.taxNumber.hasError('server')) {
+              <mat-error>{{ form.controls.taxNumber.getError('server') }}</mat-error>
+            }
+          </mat-form-field>
+          <mat-form-field class="wide">
+            <mat-label>Şirket unvanı</mat-label>
+            <input matInput formControlName="companyName" autocomplete="organization" />
+            <mat-error>Şirket unvanı zorunludur.</mat-error>
+          </mat-form-field>
+        }
+      </div>
+
+      <h2>İletişim</h2>
+      <div class="grid">
+        <mat-form-field>
+          <mat-label>E-posta</mat-label>
+          <input matInput type="email" formControlName="email" autocomplete="email" />
+          <mat-error>Geçerli bir e-posta adresi girin.</mat-error>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Telefon</mat-label>
+          <input
+            matInput
+            formControlName="phone"
+            inputmode="tel"
+            placeholder="05xxxxxxxxx"
+            maxlength="11"
+          />
+          <mat-error>Telefon 0 ile başlayan 11 haneli olmalıdır.</mat-error>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>İl</mat-label>
+          <mat-select formControlName="cityId">
+            @for (city of cities(); track city.id) {
+              <mat-option [value]="city.id">{{ city.plateCode }} - {{ city.name }}</mat-option>
+            }
+          </mat-select>
+          <mat-error>İl zorunludur.</mat-error>
+        </mat-form-field>
+        <mat-form-field class="wide">
+          <mat-label>Adres</mat-label>
+          <textarea
+            matInput
+            formControlName="addressLine"
+            rows="2"
+            autocomplete="street-address"
+          ></textarea>
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+
+    <mat-card-actions align="end">
+      <a mat-button [routerLink]="isEdit ? ['/customers', id()] : ['/customers']">Vazgeç</a>
+      <button mat-flat-button type="submit" [disabled]="saving() || loading()">
+        {{ saving() ? 'Kaydediliyor…' : 'Kaydet' }}
+      </button>
+    </mat-card-actions>
+  </form>
+</mat-card>
