@@ -5,7 +5,7 @@
 
 ## Bağlam
 
-Angular SPA ile REST API arasında oturum gerekiyor. Rol bazlı yetki (ADMIN, AGENT, CLAIM_HANDLER, CUSTOMER) her
+Angular SPA ile REST API arasında oturum gerekiyor. Rol bazlı yetki (ADMIN, AGENT, CLAIM_HANDLER) her
 istekte kontrol edilmeli. Sunucu tarafında oturum tutmak (session cookie) yatay ölçeklemeyi ve API'nin başka
 istemcilerce kullanılmasını zorlaştırır; uzun ömürlü tek bir token çalındığında uzun süre geçerli kalır.
 
