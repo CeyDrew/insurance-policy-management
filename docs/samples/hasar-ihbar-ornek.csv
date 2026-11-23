@@ -1,0 +1,8 @@
+policy_number;incident_date;description;estimated_amount;incident_city_plate
+TRF-2026-000001;05.10.2026;Kavşakta arkadan çarpma;38.500,00;34
+KSK-2026-000003;01.11.2026;Otoparkta bilinmeyen araç tarafından çizilme;12500,75;6
+KNT-2026-000005;12.11.2026;Mutfakta su kaçağı nedeniyle parke hasarı;24000;35
+TRF-1999-000999;01.10.2026;Bilinmeyen poliçe;1000;34
+KSK-2026-000003;31.11.2026;Geçersiz tarih;5000;
+KNT-2026-000005;12.11.2026;Mutfakta su kaçağı nedeniyle parke hasarı;24000;35
+TRF-2026-000001;05.10.2026;Eksik alan
