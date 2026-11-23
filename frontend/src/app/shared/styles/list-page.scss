@@ -1,0 +1,72 @@
+// Shared layout for list pages (header, filter bar, table card).
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+
+  h1 {
+    margin: 0;
+    font: var(--mat-sys-headline-small);
+  }
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  mat-form-field {
+    min-width: 180px;
+  }
+
+  .grow {
+    flex: 1 1 280px;
+  }
+}
+
+.table-card {
+  overflow: hidden;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+}
+
+.row-link {
+  color: var(--mat-sys-primary);
+  font-weight: 500;
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+.mono {
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 13px;
+}
+
+.number {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.message {
+  padding: 24px 16px;
+  color: var(--mat-sys-on-surface-variant);
+  text-align: center;
+
+  &.error {
+    color: var(--mat-sys-error);
+  }
+}
