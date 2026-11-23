@@ -3,6 +3,7 @@ package com.portfolio.insurance.common.error;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
+import org.springframework.data.core.PropertyReferenceException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -62,6 +63,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     ProblemDetail handleAccessDenied(AccessDeniedException ex) {
         return problem(HttpStatus.FORBIDDEN, "Yetkisiz işlem", "Bu işlem için yetkiniz yok.");
+    }
+
+    /** Unknown sort property in a paged request, e.g. {@code ?sort=foo}. */
+    @ExceptionHandler(PropertyReferenceException.class)
+    ProblemDetail handleUnknownProperty(PropertyReferenceException ex) {
+        return problem(HttpStatus.BAD_REQUEST, "Geçersiz istek",
+                "Bilinmeyen sıralama alanı: %s".formatted(ex.getPropertyName()));
     }
 
     @ExceptionHandler(OptimisticLockingFailureException.class)
