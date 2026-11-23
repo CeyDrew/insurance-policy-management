@@ -12,7 +12,11 @@ describe('AuthService', () => {
   beforeEach(() => {
     localStorage.clear();
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([{ path: '**', children: [] }])],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: '**', children: [] }]),
+      ],
     });
     service = TestBed.inject(AuthService);
     http = TestBed.inject(HttpTestingController);
@@ -22,7 +26,9 @@ describe('AuthService', () => {
 
   it('stores the session after login', () => {
     let username: string | undefined;
-    service.login({ username: 'agent', password: 'secret' }).subscribe((user) => (username = user.username));
+    service
+      .login({ username: 'agent', password: 'secret' })
+      .subscribe((user) => (username = user.username));
 
     const req = http.expectOne('/api/auth/login');
     expect(req.request.body).toEqual({ username: 'agent', password: 'secret' });

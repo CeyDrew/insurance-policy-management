@@ -58,7 +58,9 @@
     </form>
 
     <section class="demo" aria-label="Demo hesapları">
-      <p>Demo hesapları (şifre: <code>{{ demoPassword }}</code>)</p>
+      <p>
+        Demo hesapları (şifre: <code>{{ demoPassword }}</code>)
+      </p>
       <div class="demo-accounts">
         @for (account of demoAccounts; track account.username) {
           <button mat-stroked-button type="button" (click)="fillDemo(account)">
