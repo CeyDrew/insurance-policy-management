@@ -1,0 +1,208 @@
+@if (customer.isLoading() && !customer.hasValue()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert">
+    <mat-icon>error</mat-icon>
+    <span>{{ message }}</span>
+  </div>
+  <a mat-button routerLink="/customers"><mat-icon>arrow_back</mat-icon> Müşteri listesine dön</a>
+}
+
+@if (customer.value(); as c) {
+  <header class="page-header">
+    <a mat-icon-button routerLink="/customers" aria-label="Müşteri listesi">
+      <mat-icon>arrow_back</mat-icon>
+    </a>
+    <div>
+      <h1>{{ c.displayName }}</h1>
+      <span class="subtitle">{{ labels.customerType[c.customerType] }} müşteri · #{{ c.id }}</span>
+    </div>
+    <span class="spacer"></span>
+    @if (canEdit) {
+      <a mat-stroked-button [routerLink]="['/customers', c.id, 'edit']"
+        ><mat-icon>edit</mat-icon> Düzenle</a
+      >
+      <a mat-flat-button routerLink="/quotes/new" [queryParams]="{ customerId: c.id }">
+        <mat-icon>request_quote</mat-icon> Teklif al
+      </a>
+    }
+    @if (canDelete) {
+      <button
+        mat-icon-button
+        (click)="remove()"
+        [disabled]="deleting()"
+        matTooltip="Müşteriyi sil"
+        aria-label="Müşteriyi sil"
+      >
+        <mat-icon>delete</mat-icon>
+      </button>
+    }
+  </header>
+
+  <mat-card appearance="outlined" class="section-card">
+    <mat-card-content>
+      <dl class="facts">
+        @if (c.customerType === 'INDIVIDUAL') {
+          <div>
+            <dt>T.C. kimlik no</dt>
+            <dd class="mono">{{ c.nationalId }}</dd>
+          </div>
+          <div>
+            <dt>Doğum tarihi</dt>
+            <dd>{{ c.birthDate | date: 'dd.MM.yyyy' }}</dd>
+          </div>
+          <div>
+            <dt>Cinsiyet</dt>
+            <dd>{{ c.gender ? labels.gender[c.gender] : '—' }}</dd>
+          </div>
+        } @else {
+          <div>
+            <dt>Vergi kimlik no</dt>
+            <dd class="mono">{{ c.taxNumber }}</dd>
+          </div>
+        }
+        <div>
+          <dt>E-posta</dt>
+          <dd>{{ c.email ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Telefon</dt>
+          <dd>{{ c.phone ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>İl</dt>
+          <dd>{{ c.cityName }}</dd>
+        </div>
+        <div class="wide-fact">
+          <dt>Adres</dt>
+          <dd>{{ c.addressLine ?? '—' }}</dd>
+        </div>
+        <div>
+          <dt>Kayıt</dt>
+          <dd>{{ c.createdAt | date: 'dd.MM.yyyy HH:mm' }} · {{ c.createdBy }}</dd>
+        </div>
+      </dl>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="section-card">
+    <div class="section-header">
+      <h2>Poliçeler ve teklifler</h2>
+    </div>
+    <div class="table-scroll">
+      <table mat-table [dataSource]="policyPage.value()?.content ?? []">
+        <ng-container matColumnDef="policyNumber">
+          <th mat-header-cell *matHeaderCellDef>Poliçe no</th>
+          <td mat-cell *matCellDef="let p">
+            <a class="row-link mono" [routerLink]="['/policies', p.id]">{{ p.policyNumber }}</a>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="productCode">
+          <th mat-header-cell *matHeaderCellDef>Ürün</th>
+          <td mat-cell *matCellDef="let p">{{ p.productName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="insuredObject">
+          <th mat-header-cell *matHeaderCellDef>Sigortalı</th>
+          <td mat-cell *matCellDef="let p">{{ p.insuredObject }}</td>
+        </ng-container>
+        <ng-container matColumnDef="period">
+          <th mat-header-cell *matHeaderCellDef>Dönem</th>
+          <td mat-cell *matCellDef="let p">
+            {{ p.startDate | date: 'dd.MM.yyyy' }} – {{ p.endDate | date: 'dd.MM.yyyy' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="grossPremium">
+          <th mat-header-cell *matHeaderCellDef class="number">Prim</th>
+          <td mat-cell *matCellDef="let p" class="number">{{ p.grossPremium | currency }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Durum</th>
+          <td mat-cell *matCellDef="let p"><app-status-badge [status]="p.status" /></td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="policyColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: policyColumns"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="empty" [attr.colspan]="policyColumns.length">
+            {{ policyPage.isLoading() ? 'Yükleniyor…' : 'Henüz poliçe veya teklif yok.' }}
+          </td>
+        </tr>
+      </table>
+    </div>
+  </mat-card>
+
+  <div class="two-columns">
+    <mat-card appearance="outlined" class="section-card">
+      <div class="section-header">
+        <h2>Araçlar</h2>
+        @if (canEdit) {
+          <button mat-button (click)="addVehicle()"><mat-icon>add</mat-icon> Araç ekle</button>
+        }
+      </div>
+      <div class="table-scroll">
+        <table mat-table [dataSource]="vehicles.value() ?? []">
+          <ng-container matColumnDef="plateNumber">
+            <th mat-header-cell *matHeaderCellDef>Plaka</th>
+            <td mat-cell *matCellDef="let v" class="mono">{{ v.plateNumber }}</td>
+          </ng-container>
+          <ng-container matColumnDef="vehicle">
+            <th mat-header-cell *matHeaderCellDef>Araç</th>
+            <td mat-cell *matCellDef="let v">{{ v.brand }} {{ v.model }} ({{ v.modelYear }})</td>
+          </ng-container>
+          <ng-container matColumnDef="usageType">
+            <th mat-header-cell *matHeaderCellDef>Kullanım</th>
+            <td mat-cell *matCellDef="let v">{{ labels.usage[v.usageType] }}</td>
+          </ng-container>
+          <ng-container matColumnDef="vehicleValue">
+            <th mat-header-cell *matHeaderCellDef class="number">Değer</th>
+            <td mat-cell *matCellDef="let v" class="number">
+              {{ v.vehicleValue | currency: 'TRY' : 'symbol' : '1.0-0' }}
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="vehicleColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: vehicleColumns"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="empty" [attr.colspan]="vehicleColumns.length">Kayıtlı araç yok.</td>
+          </tr>
+        </table>
+      </div>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="section-card">
+      <div class="section-header">
+        <h2>Konutlar</h2>
+        @if (canEdit) {
+          <button mat-button (click)="addProperty()"><mat-icon>add</mat-icon> Konut ekle</button>
+        }
+      </div>
+      <div class="table-scroll">
+        <table mat-table [dataSource]="properties.value() ?? []">
+          <ng-container matColumnDef="address">
+            <th mat-header-cell *matHeaderCellDef>Adres</th>
+            <td mat-cell *matCellDef="let p">{{ p.addressLine }}, {{ p.cityName }}</td>
+          </ng-container>
+          <ng-container matColumnDef="constructionType">
+            <th mat-header-cell *matHeaderCellDef>Yapı</th>
+            <td mat-cell *matCellDef="let p">{{ labels.construction[p.constructionType] }}</td>
+          </ng-container>
+          <ng-container matColumnDef="grossAreaM2">
+            <th mat-header-cell *matHeaderCellDef class="number">Alan</th>
+            <td mat-cell *matCellDef="let p" class="number">{{ p.grossAreaM2 }} m²</td>
+          </ng-container>
+          <ng-container matColumnDef="propertyValue">
+            <th mat-header-cell *matHeaderCellDef class="number">Değer</th>
+            <td mat-cell *matCellDef="let p" class="number">
+              {{ p.propertyValue | currency: 'TRY' : 'symbol' : '1.0-0' }}
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="propertyColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: propertyColumns"></tr>
+          <tr class="mat-row" *matNoDataRow>
+            <td class="empty" [attr.colspan]="propertyColumns.length">Kayıtlı konut yok.</td>
+          </tr>
+        </table>
+      </div>
+    </mat-card>
+  </div>
+}

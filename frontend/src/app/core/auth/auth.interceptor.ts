@@ -11,7 +11,10 @@ const PUBLIC_AUTH_ENDPOINTS = ['/api/auth/login', '/api/auth/refresh', '/api/aut
  * if the refresh fails the session is cleared and the user is sent to the login page.
  */
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
-  if (!req.url.startsWith('/api/') || PUBLIC_AUTH_ENDPOINTS.some((url) => req.url.startsWith(url))) {
+  if (
+    !req.url.startsWith('/api/') ||
+    PUBLIC_AUTH_ENDPOINTS.some((url) => req.url.startsWith(url))
+  ) {
     return next(req);
   }
 

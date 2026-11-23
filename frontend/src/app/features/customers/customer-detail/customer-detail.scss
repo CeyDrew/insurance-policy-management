@@ -1,0 +1,30 @@
+@use '../../../shared/styles/form-page';
+
+.subtitle {
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.wide-fact {
+  grid-column: span 2;
+}
+
+.two-columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 16px;
+
+  .section-card {
+    margin-bottom: 0;
+  }
+}
+
+@media (max-width: 599px) {
+  .two-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-fact {
+    grid-column: auto;
+  }
+}

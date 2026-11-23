@@ -1,0 +1,24 @@
+.dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  column-gap: 16px;
+  min-width: min(520px, 80vw);
+  padding-top: 8px !important;
+
+  .wide,
+  .dialog-error {
+    grid-column: 1 / -1;
+  }
+}
+
+.dialog-error {
+  margin: 0 0 12px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.upper {
+  text-transform: uppercase;
+}

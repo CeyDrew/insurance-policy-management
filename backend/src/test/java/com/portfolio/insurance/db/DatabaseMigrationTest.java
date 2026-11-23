@@ -45,8 +45,8 @@ class DatabaseMigrationTest {
 
     @Test
     void demoDataIsSeeded() {
-        assertThat(count("customer")).isEqualTo(50);
-        assertThat(count("policy")).isEqualTo(200);
+        assertThat(seeded("customer")).isEqualTo(50);
+        assertThat(seeded("policy")).isEqualTo(200);
         assertThat(count("installment")).isPositive();
         assertThat(count("payment")).isPositive();
         assertThat(count("claim")).isPositive();
@@ -57,7 +57,7 @@ class DatabaseMigrationTest {
     @Test
     void seededIdentityNumbersHaveValidChecksums() {
         List<String> nationalIds = jdbc.queryForList(
-                "SELECT national_id FROM customer WHERE customer_type = 'INDIVIDUAL'", String.class);
+                "SELECT national_id FROM customer WHERE customer_type = 'INDIVIDUAL' AND created_by = 'seed'", String.class);
         List<String> taxNumbers = jdbc.queryForList(
                 "SELECT tax_number FROM customer WHERE customer_type = 'CORPORATE'", String.class);
 
@@ -98,6 +98,11 @@ class DatabaseMigrationTest {
         // Unknown policy status.
         assertThatThrownBy(() -> jdbc.update("UPDATE policy SET status = 'DRAFT' WHERE ROWNUM = 1"))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    /** Rows created by the V7 seed migration; other tests may add their own rows to the shared database. */
+    private int seeded(String table) {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE created_by = 'seed'", Integer.class);
     }
 
     private int count(String table) {

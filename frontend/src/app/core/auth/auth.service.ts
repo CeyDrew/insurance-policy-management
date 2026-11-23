@@ -66,7 +66,9 @@ export class AuthService {
     const refreshToken = this.session()?.refreshToken;
     if (refreshToken) {
       // Best effort: the local session is cleared even if the server call fails.
-      this.http.post<void>(`${AUTH_API}/logout`, { refreshToken }).subscribe({ error: () => undefined });
+      this.http
+        .post<void>(`${AUTH_API}/logout`, { refreshToken })
+        .subscribe({ error: () => undefined });
     }
     this.clearSession();
     void this.router.navigate(['/login']);

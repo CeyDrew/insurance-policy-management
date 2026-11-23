@@ -43,7 +43,9 @@ type UsersState =
             <ng-container matColumnDef="role">
               <th mat-header-cell *matHeaderCellDef>Rol</th>
               <td mat-cell *matCellDef="let user">
-                <mat-chip-set><mat-chip>{{ roleLabel(user.role) }}</mat-chip></mat-chip-set>
+                <mat-chip-set
+                  ><mat-chip>{{ roleLabel(user.role) }}</mat-chip></mat-chip-set
+                >
               </td>
             </ng-container>
             <ng-container matColumnDef="active">
@@ -75,7 +77,9 @@ export class UserList {
       .findAll()
       .pipe(
         map((users): UsersState => ({ status: 'loaded', users })),
-        catchError((err: unknown) => of<UsersState>({ status: 'error', message: errorMessage(err) })),
+        catchError((err: unknown) =>
+          of<UsersState>({ status: 'error', message: errorMessage(err) }),
+        ),
         startWith<UsersState>({ status: 'loading' }),
       ),
     { requireSync: true },
