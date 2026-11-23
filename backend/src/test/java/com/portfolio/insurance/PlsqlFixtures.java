@@ -82,6 +82,20 @@ public class PlsqlFixtures {
         jdbc.update("BEGIN pkg_premium.generate_installments(?, ?); END;", policyId, count);
     }
 
+    /** A claim in REPORTED status (or later, with the given handler). */
+    public long claim(long policyId, LocalDate incidentDate, BigDecimal estimatedAmount) {
+        long id = nextId("claim_seq");
+        jdbc.update("""
+                INSERT INTO claim (id, claim_number, policy_id, incident_date, description, status, estimated_amount)
+                VALUES (?, ?, ?, ?, 'Test hasarı', 'REPORTED', ?)
+                """, id, "TST-HSR-" + id, policyId, incidentDate, estimatedAmount);
+        return id;
+    }
+
+    public long userId(String username) {
+        return jdbc.queryForObject("SELECT id FROM app_user WHERE username = ?", Long.class, username);
+    }
+
     private long nextId(String sequence) {
         return jdbc.queryForObject("SELECT " + sequence + ".NEXTVAL FROM dual", Long.class);
     }
