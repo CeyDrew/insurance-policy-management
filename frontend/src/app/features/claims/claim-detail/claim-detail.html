@@ -1,0 +1,212 @@
+@if ((claim.isLoading() && !claim.hasValue()) || busy()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+  <a mat-button routerLink="/claims"><mat-icon>arrow_back</mat-icon> Hasar listesine dön</a>
+}
+
+@if (claim.value(); as c) {
+  <header class="page-header">
+    <a mat-icon-button routerLink="/claims" aria-label="Hasarlar"
+      ><mat-icon>arrow_back</mat-icon></a
+    >
+    <div>
+      <h1 class="mono-title">{{ c.claimNumber }}</h1>
+      <span class="subtitle">{{ c.productName }} · {{ c.customerName }}</span>
+    </div>
+    <app-status-badge [status]="c.status" />
+    <span class="spacer"></span>
+    @if (canAssign()) {
+      <button mat-stroked-button (click)="assign(c)" [disabled]="busy()">
+        <mat-icon>assignment_ind</mat-icon> Dosyayı üstlen
+      </button>
+    }
+    @if (canDecide() && c.status === 'IN_REVIEW') {
+      <button
+        mat-stroked-button
+        class="danger-outline"
+        (click)="decide(c, 'reject')"
+        [disabled]="busy()"
+      >
+        <mat-icon>block</mat-icon> Reddet
+      </button>
+      <button mat-flat-button (click)="decide(c, 'approve')" [disabled]="busy()">
+        <mat-icon>check</mat-icon> Onayla
+      </button>
+    }
+    @if (canDecide() && c.status === 'APPROVED') {
+      <button mat-flat-button (click)="decide(c, 'pay')" [disabled]="busy()">
+        <mat-icon>payments</mat-icon> Ödemeyi yap
+      </button>
+    }
+  </header>
+
+  @if (c.status === 'REJECTED' && c.decisionNote) {
+    <div class="info-banner danger">
+      <mat-icon>block</mat-icon> Red gerekçesi: {{ c.decisionNote }}
+    </div>
+  }
+
+  <div class="layout">
+    <div class="main">
+      <mat-card appearance="outlined" class="section-card">
+        <mat-card-content>
+          <dl class="facts">
+            <div>
+              <dt>Poliçe</dt>
+              <dd>
+                <a class="row-link mono" [routerLink]="['/policies', c.policyId]">{{
+                  c.policyNumber
+                }}</a>
+              </dd>
+            </div>
+            <div>
+              <dt>Sigorta ettiren</dt>
+              <dd>
+                <a class="row-link" [routerLink]="['/customers', c.customerId]">{{
+                  c.customerName
+                }}</a>
+              </dd>
+            </div>
+            <div class="wide-fact">
+              <dt>Sigortalı</dt>
+              <dd>{{ c.insuredObject }}</dd>
+            </div>
+            <div>
+              <dt>Hasar tarihi</dt>
+              <dd>{{ c.incidentDate | date: 'dd.MM.yyyy' }}</dd>
+            </div>
+            <div>
+              <dt>İhbar</dt>
+              <dd>{{ c.reportedAt | date: 'dd.MM.yyyy HH:mm' }} · {{ c.createdBy }}</dd>
+            </div>
+            <div>
+              <dt>Hasar yeri</dt>
+              <dd>{{ c.incidentCityName ?? '—' }}</dd>
+            </div>
+            <div>
+              <dt>Hasar uzmanı</dt>
+              <dd>{{ c.handlerName ?? 'Atanmadı' }}</dd>
+            </div>
+            <div class="full-fact">
+              <dt>Açıklama</dt>
+              <dd class="description">{{ c.description }}</dd>
+            </div>
+          </dl>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card appearance="outlined" class="section-card">
+        <div class="section-header">
+          <h2>Evraklar ({{ c.documents.length }})</h2>
+          @if (!isClosed()) {
+            <form class="upload" [formGroup]="uploadForm">
+              <mat-form-field subscriptSizing="dynamic" class="type-select">
+                <mat-label>Evrak türü</mat-label>
+                <mat-select formControlName="documentType">
+                  @for (option of documentTypes; track option.value) {
+                    <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <button
+                mat-stroked-button
+                type="button"
+                (click)="fileInput.click()"
+                [disabled]="uploading()"
+              >
+                <mat-icon>attach_file</mat-icon> {{ uploading() ? 'Yükleniyor…' : 'Evrak ekle' }}
+              </button>
+              <input
+                #fileInput
+                type="file"
+                hidden
+                accept="application/pdf,image/jpeg,image/png"
+                (change)="onFileSelected(c, $event)"
+              />
+            </form>
+          }
+        </div>
+        @if (c.documents.length === 0) {
+          <p class="empty">Henüz evrak yüklenmedi. PDF, JPEG veya PNG (en fazla 10 MB).</p>
+        } @else {
+          <ul class="documents">
+            @for (document of c.documents; track document.id) {
+              <li>
+                <mat-icon class="doc-icon">{{
+                  document.contentType === 'application/pdf' ? 'picture_as_pdf' : 'image'
+                }}</mat-icon>
+                <div class="doc-name">
+                  <span>{{ document.fileName }}</span>
+                  <small>
+                    {{ documentLabels[document.documentType] }} ·
+                    {{ formatBytes(document.fileSize) }} ·
+                    {{ document.createdAt | date: 'dd.MM.yyyy HH:mm' }} · {{ document.createdBy }}
+                  </small>
+                </div>
+                <button
+                  mat-icon-button
+                  (click)="download(c, document)"
+                  matTooltip="İndir"
+                  [attr.aria-label]="document.fileName + ' indir'"
+                >
+                  <mat-icon>download</mat-icon>
+                </button>
+              </li>
+            }
+          </ul>
+        }
+      </mat-card>
+    </div>
+
+    <div class="side">
+      <mat-card appearance="outlined" class="section-card">
+        <mat-card-content>
+          <h2>Tutarlar</h2>
+          <dl class="amounts">
+            <div>
+              <dt>Tahmini</dt>
+              <dd>{{ c.estimatedAmount | currency }}</dd>
+            </div>
+            <div>
+              <dt>Onaylanan</dt>
+              <dd>{{ c.approvedAmount !== null ? (c.approvedAmount | currency) : '—' }}</dd>
+            </div>
+            <div class="total">
+              <dt>Ödenen</dt>
+              <dd>{{ c.paidAmount !== null ? (c.paidAmount | currency) : '—' }}</dd>
+            </div>
+          </dl>
+          @if (c.decisionNote && c.status !== 'REJECTED') {
+            <p class="note"><mat-icon>sticky_note_2</mat-icon> {{ c.decisionNote }}</p>
+          }
+          <p class="ncd">
+            Poliçenin hasarsızlık basamağı: <strong>{{ c.ncdStep }}</strong>
+          </p>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card appearance="outlined" class="section-card">
+        <mat-card-content>
+          <h2>Durum geçmişi</h2>
+          <ol class="timeline">
+            @for (entry of c.history; track $index) {
+              <li>
+                <span class="dot"></span>
+                <div>
+                  <strong>{{
+                    entry.operation === 'INSERT' ? 'İhbar edildi' : statusLabel(entry.toStatus)
+                  }}</strong>
+                  <small
+                    >{{ entry.changedAt | date: 'dd.MM.yyyy HH:mm' }} · {{ entry.changedBy }}</small
+                  >
+                </div>
+              </li>
+            }
+          </ol>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+}

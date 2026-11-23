@@ -1,0 +1,93 @@
+<header class="page-header">
+  <a mat-icon-button routerLink="/claims" aria-label="Hasarlar"><mat-icon>arrow_back</mat-icon></a>
+  <h1>Hasar ihbarı</h1>
+</header>
+
+<mat-card appearance="outlined">
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <mat-card-content>
+      @if (error(); as message) {
+        <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+      }
+
+      <h2>Poliçe</h2>
+      <mat-form-field class="policy-search">
+        <mat-label>Poliçe ara</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
+        <input
+          matInput
+          [formControl]="policySearch"
+          [matAutocomplete]="policyAuto"
+          placeholder="Poliçe no, müşteri adı veya plaka"
+        />
+        <mat-autocomplete
+          #policyAuto="matAutocomplete"
+          [displayWith]="displayPolicy"
+          (optionSelected)="onPolicySelected($event)"
+        >
+          @for (option of suggestions(); track option.id) {
+            <mat-option [value]="option">
+              <span class="mono">{{ option.policyNumber }}</span>
+              <small class="option-meta"
+                >{{ option.customerName }} · {{ option.insuredObject }}</small
+              >
+            </mat-option>
+          }
+        </mat-autocomplete>
+      </mat-form-field>
+
+      @if (policy(); as p) {
+        <div class="policy-box">
+          <div class="policy-head">
+            <strong class="mono">{{ p.policyNumber }}</strong>
+            <app-status-badge [status]="p.status" />
+          </div>
+          <div>{{ p.productName }} · {{ p.customerName }}</div>
+          <div class="muted">{{ p.insuredObject }}</div>
+          <div class="muted">
+            Teminat: {{ p.startDate | date: 'dd.MM.yyyy' }} – {{ p.endDate | date: 'dd.MM.yyyy' }}
+          </div>
+        </div>
+      }
+
+      <h2>Hasar bilgileri</h2>
+      <div class="grid">
+        <mat-form-field>
+          <mat-label>Hasar tarihi</mat-label>
+          <input matInput [matDatepicker]="picker" formControlName="incidentDate" [max]="maxDate" />
+          <mat-datepicker-toggle matIconSuffix [for]="picker" />
+          <mat-datepicker #picker />
+          <mat-error>{{
+            form.controls.incidentDate.getError('server') ?? 'Geçerli bir tarih seçin.'
+          }}</mat-error>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Hasar yeri (il)</mat-label>
+          <mat-select formControlName="incidentCityId">
+            <mat-option [value]="null">Belirtilmemiş</mat-option>
+            @for (city of cities(); track city.id) {
+              <mat-option [value]="city.id">{{ city.plateCode }} - {{ city.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Tahmini tutar (₺)</mat-label>
+          <input matInput type="number" formControlName="estimatedAmount" min="1" />
+          <mat-error>Pozitif bir tutar girin.</mat-error>
+        </mat-form-field>
+        <mat-form-field class="wide">
+          <mat-label>Açıklama</mat-label>
+          <textarea matInput formControlName="description" rows="4" maxlength="2000"></textarea>
+          <mat-hint align="end">{{ form.controls.description.value.length }} / 2000</mat-hint>
+          <mat-error>Hasarın nasıl oluştuğunu yazın.</mat-error>
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+    <mat-card-actions align="end">
+      <a mat-button routerLink="/claims">Vazgeç</a>
+      <button mat-flat-button type="submit" [disabled]="saving()">
+        {{ saving() ? 'Kaydediliyor…' : 'İhbarı kaydet' }}
+      </button>
+    </mat-card-actions>
+  </form>
+</mat-card>
