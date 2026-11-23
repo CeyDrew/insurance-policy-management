@@ -2,7 +2,6 @@ package com.portfolio.insurance.policy;
 
 import com.portfolio.insurance.asset.Property;
 import com.portfolio.insurance.asset.Vehicle;
-import com.portfolio.insurance.common.error.BusinessException;
 import com.portfolio.insurance.common.persistence.BaseEntity;
 import com.portfolio.insurance.customer.Customer;
 import com.portfolio.insurance.premium.PremiumResult;
@@ -24,20 +23,17 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.EnumSet;
-import java.util.Set;
 
 /**
  * A policy and its quote: a quote is a policy in {@link PolicyStatus#QUOTE} status, so issuing it keeps
- * the same number and history. State changes go through the methods below, which enforce the allowed transitions.
+ * the same number and history. Status changes are made by PKG_POLICY (see {@link PolicyLifecycle}),
+ * which owns the transition rules; this entity is read and created by JPA but never changes status itself.
  */
 @Getter
 @Entity
 @Table(name = "policy")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Policy extends BaseEntity {
-
-    private static final Set<PolicyStatus> CANCELLABLE = EnumSet.of(PolicyStatus.ACTIVE, PolicyStatus.SUSPENDED);
 
     /**
      * Assigned from policy_seq before persisting (see {@link PolicyRepository#nextId()}), because the policy number
@@ -134,31 +130,5 @@ public class Policy extends BaseEntity {
         policy.quoteValidUntil = quoteValidUntil;
         policy.policyNumber = "%s-%d-%06d".formatted(product.getCode().policyPrefix(), startDate.getYear(), id);
         return policy;
-    }
-
-    void issue(LocalDateTime now) {
-        LocalDate today = now.toLocalDate();
-        if (status != PolicyStatus.QUOTE) {
-            throw new BusinessException("POLICY_NOT_QUOTE", "Sadece teklif durumundaki kayıtlar poliçeleştirilebilir.");
-        }
-        if (quoteValidUntil != null && quoteValidUntil.isBefore(today)) {
-            throw new BusinessException("QUOTE_EXPIRED", "Teklifin geçerlilik süresi dolmuş. Yeni teklif alın.");
-        }
-        if (startDate.isBefore(today)) {
-            throw new BusinessException("QUOTE_START_DATE_PASSED",
-                    "Teklifin başlangıç tarihi geçmiş. Yeni teklif alın.");
-        }
-        status = PolicyStatus.ACTIVE;
-        issuedAt = now;
-    }
-
-    void cancel(String reason, LocalDateTime now, BigDecimal refund) {
-        if (!CANCELLABLE.contains(status)) {
-            throw new BusinessException("POLICY_NOT_CANCELLABLE", "Sadece yürürlükteki veya askıdaki poliçeler iptal edilebilir.");
-        }
-        status = PolicyStatus.CANCELLED;
-        cancelledAt = now;
-        cancelReason = reason;
-        refundAmount = refund;
     }
 }

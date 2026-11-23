@@ -8,6 +8,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -39,6 +40,9 @@ class PolicyIntegrationTest {
 
     @Autowired
     private MockMvc mvc;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     private long customerId;
     private long vehicleId;
@@ -158,6 +162,35 @@ class PolicyIntegrationTest {
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.content[0].id").value(id))
                 .andExpect(jsonPath("$.content[0].insuredObject").value(plate));
+    }
+
+    @Test
+    void quotePremiumComesFromThePlsqlEngine() throws Exception {
+        LocalDate start = LocalDate.now();
+        DocumentContext quote = json(quote("CASCO", vehicleId, null, start, 1).andExpect(status().isCreated()));
+
+        BigDecimal expected = jdbc.queryForObject(
+                "SELECT pkg_premium.calculate_premium('CASCO', ?, ?, NULL, 4, ?) FROM dual",
+                BigDecimal.class, customerId, vehicleId, start);
+        assertThat(quote.read("$.netPremium", BigDecimal.class)).isEqualByComparingTo(expected);
+    }
+
+    @Test
+    void plsqlTariffErrorIsReturnedAsProblemDetail() throws Exception {
+        long youngCustomer = postForId("/api/customers", """
+                {"customerType":"INDIVIDUAL","nationalId":"%s","firstName":"Genç","lastName":"Sürücü",
+                 "birthDate":"%s","cityId":%d}
+                """.formatted(TestData.tckn(), LocalDate.now().minusYears(17), cityId(34)));
+        long youngVehicle = postForId("/api/customers/%d/vehicles".formatted(youngCustomer), """
+                {"plateNumber":"%s","chassisNumber":"%s","brand":"Renault","model":"Clio","modelYear":2023,
+                 "usageType":"PRIVATE","vehicleValue":900000}
+                """.formatted(TestData.plate(), TestData.chassis()));
+        customerId = youngCustomer;
+
+        quote("TRAFFIC", youngVehicle, null, LocalDate.now(), 1)
+                .andExpect(status().isUnprocessableContent())
+                .andExpect(jsonPath("$.code").value("TARIFF_NOT_FOUND"))
+                .andExpect(jsonPath("$.detail").value("Sürücü yaşı (17) için tarife bulunmuyor."));
     }
 
     @Test

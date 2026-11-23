@@ -33,6 +33,25 @@ class DatabaseMigrationTest {
         assertThat(applied).isGreaterThanOrEqualTo(9);
     }
 
+    /**
+     * Oracle reports PL/SQL compilation errors only as warnings, so a broken package would not fail the migration.
+     * This makes sure every package and trigger compiled cleanly.
+     */
+    @Test
+    void plsqlObjectsCompileWithoutErrors() {
+        List<String> errors = jdbc.queryForList(
+                "SELECT name || ' line ' || line || ': ' || text FROM user_errors ORDER BY name, sequence", String.class);
+        List<String> invalid = jdbc.queryForList(
+                "SELECT object_type || ' ' || object_name FROM user_objects WHERE status <> 'VALID'", String.class);
+        List<String> plsql = jdbc.queryForList(
+                "SELECT object_name FROM user_objects WHERE object_type IN ('PACKAGE BODY', 'TRIGGER') ORDER BY 1",
+                String.class);
+
+        assertThat(errors).isEmpty();
+        assertThat(invalid).isEmpty();
+        assertThat(plsql).contains("PKG_ERRORS", "PKG_POLICY", "PKG_PREMIUM", "TRG_CLAIM_AUDIT", "TRG_POLICY_AUDIT");
+    }
+
     @Test
     void referenceDataIsSeeded() {
         assertThat(count("city")).isEqualTo(81);

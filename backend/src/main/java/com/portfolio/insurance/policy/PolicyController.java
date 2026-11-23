@@ -58,14 +58,15 @@ public class PolicyController {
     @Operation(summary = "Issue a quote as a policy")
     @PostMapping("/{id}/issue")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
-    public PolicyDto issue(@PathVariable Long id) {
-        return policyService.issue(id);
+    public PolicyDto issue(@PathVariable Long id, Authentication authentication) {
+        return policyService.issue(id, authentication.getName());
     }
 
     @Operation(summary = "Cancel an active or suspended policy")
     @PostMapping("/{id}/cancel")
     @PreAuthorize("hasAnyRole('ADMIN', 'AGENT')")
-    public PolicyDto cancel(@PathVariable Long id, @Valid @RequestBody CancelPolicyRequest request) {
-        return policyService.cancel(id, request);
+    public PolicyDto cancel(@PathVariable Long id, @Valid @RequestBody CancelPolicyRequest request,
+                            Authentication authentication) {
+        return policyService.cancel(id, request, authentication.getName());
     }
 }

@@ -16,16 +16,16 @@ import com.portfolio.insurance.reference.ProductCode;
 import com.portfolio.insurance.reference.ReferenceService;
 import com.portfolio.insurance.user.AppUser;
 import com.portfolio.insurance.user.AppUserRepository;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.EnumSet;
 import java.util.Objects;
 
@@ -47,6 +47,8 @@ public class PolicyService {
     private final ReferenceService referenceService;
     private final AppUserRepository userRepository;
     private final PremiumEngine premiumEngine;
+    private final PolicyLifecycle policyLifecycle;
+    private final EntityManager entityManager;
     private final Clock clock;
 
     public PageResponse<PolicySummaryDto> search(String query, PolicyStatus status, ProductCode productCode,
@@ -87,6 +89,8 @@ public class PolicyService {
         }
 
         int ncdStep = previousNcdStep(product.getCode(), customer.getId(), insured);
+        // The engine runs in PL/SQL and only sees flushed rows (JDBC calls do not trigger Hibernate auto-flush).
+        entityManager.flush();
         PremiumResult premium = premiumEngine.calculatePremium(new PremiumRequest(product.getCode(), customer.getId(),
                 insured.vehicleId(), insured.propertyId(), ncdStep, request.startDate()));
 
@@ -97,26 +101,28 @@ public class PolicyService {
         return toDto(policy);
     }
 
-    /** QUOTE -> ACTIVE and creation of the installment plan. */
+    /** QUOTE -> ACTIVE and creation of the installment plan (PKG_POLICY.ISSUE_POLICY). */
     @Transactional
-    public PolicyDto issue(Long id) {
-        Policy policy = getPolicy(id);
-        policy.issue(LocalDateTime.now(clock));
-        policyRepository.flush();
-        premiumEngine.generateInstallments(policy.getId());
-        return toDto(policy);
+    public PolicyDto issue(Long id, String username) {
+        runInDatabase(() -> policyLifecycle.issue(id, username));
+        return findById(id);
     }
 
-    /** ACTIVE/SUSPENDED -> CANCELLED with a day-based refund; open installments are cancelled. */
+    /** ACTIVE/SUSPENDED -> CANCELLED with a day-based refund (PKG_POLICY.CANCEL_POLICY). */
     @Transactional
-    public PolicyDto cancel(Long id, CancelPolicyRequest request) {
-        Policy policy = getPolicy(id);
-        LocalDateTime now = LocalDateTime.now(clock);
-        BigDecimal refund = premiumEngine.calculateRefund(policy.getId(), now.toLocalDate());
-        policy.cancel(request.reason().trim(), now, refund);
-        policyRepository.flush();
-        installmentRepository.cancelOpenInstallments(policy.getId());
-        return toDto(getPolicy(id));
+    public PolicyDto cancel(Long id, CancelPolicyRequest request, String username) {
+        runInDatabase(() -> policyLifecycle.cancel(id, request.reason().trim(), LocalDate.now(clock), username));
+        return findById(id);
+    }
+
+    /**
+     * Runs a PL/SQL operation that modifies rows behind Hibernate's back: pending changes are flushed first so
+     * the procedure sees them, and the persistence context is cleared afterwards so no stale entity is returned.
+     */
+    private void runInDatabase(Runnable operation) {
+        entityManager.flush();
+        operation.run();
+        entityManager.clear();
     }
 
     private Policy getPolicy(Long id) {

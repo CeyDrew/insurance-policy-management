@@ -1,0 +1,169 @@
+# PL/SQL Bileşenleri
+
+Prim hesabı, taksit planı, poliçe durum geçişleri ve iptal iadesi veritabanında, PL/SQL paketlerinde çalışır.
+Java servis katmanı bu kuralları yeniden yazmaz; paketleri `SimpleJdbcCall` ile çağırır.
+
+| Bileşen | Migration | Görevi |
+|---|---|---|
+| `PKG_ERRORS` | `R__1_pkg_errors.sql` | Kodlu uygulama hataları (`RAISE_APPLICATION_ERROR`) |
+| `PKG_PREMIUM` | `R__2_pkg_premium.sql` | Tarifeye göre prim hesabı, taksit planı |
+| `PKG_POLICY` | `R__3_pkg_policy.sql` | Durum geçişleri, poliçeleştirme, gün esaslı iade ve iptal |
+| `TRG_POLICY_AUDIT`, `TRG_CLAIM_AUDIT` | `R__4_audit_triggers.sql` | Değişiklikleri `AUDIT_LOG`'a JSON olarak yazar |
+
+Paket ve trigger'lar Flyway **repeatable** (`R__`) migration'larıdır: dosya değiştiğinde bir sonraki açılışta
+yeniden derlenir. Tablolar ise sürümlü (`V__`) migration'lardadır.
+
+## Neden PL/SQL?
+
+- **Tek kaynak:** Tarife ve iade kuralları, veriyi kim değiştirirse değiştirsin (REST API, batch job,
+  veritabanından yapılan düzeltme) aynı yerden uygulanır.
+- **Veriye yakınlık:** Prim hesabı müşteri, araç/konut, il ve tarife tablolarını okur. Bu iş tek bir veritabanı
+  çağrısında biter; Java'ya taşınacak bir nesne grafiği yoktur.
+- **Tutarlılık:** Poliçe satırı `SELECT ... FOR UPDATE` ile kilitlenir. Durum değişikliği, taksit planı ve
+  iadeler aynı transaction'da atomik olarak yapılır.
+- **Sektör gerçeği:** Sigorta çekirdek sistemlerinde tarife motorunun PL/SQL'de olması yaygındır. Uygulama katmanı
+  bunu bir arayüzün (`PremiumEngine`, `PolicyLifecycle`) arkasında soyutlar.
+
+## PKG_PREMIUM
+
+### Prim formülü
+
+Bütün katsayılar `TARIFF_PARAMETER` tablosundan, poliçe başlangıç tarihinde geçerli olan satırdan okunur.
+
+| Ürün | Net prim |
+|---|---|
+| Trafik | `base_premium` × il riski × sürücü yaşı × araç yaşı × kullanım tipi × hasarsızlık basamağı |
+| Kasko | araç değeri × `VALUE_RATE` × il riski × sürücü yaşı × araç yaşı × kullanım tipi × hasarsızlık basamağı |
+| Konut | konut değeri × `VALUE_RATE` × konutun ilinin riski × bina yaşı × yapı tipi |
+| Sağlık | `base_premium` × sigortalı yaşı |
+
+- Sonuç ürünün `min_premium` değerinin altına düşmez. Tutar 2 haneye yuvarlanır (Oracle `ROUND`, yarım yukarı).
+- Vergi `net × tax_rate`, brüt prim `net + vergi`.
+- Kurumsal müşterinin doğum tarihi yoktur; sürücü yaşı katsayısı uygulanmaz.
+- Araç/bina yaşı negatif çıkarsa (gelecek model yılı) 0 kabul edilir.
+
+**Örnek (Trafik):** İstanbul'da (1,35) oturan 37 yaşında (1,00) bir sürücünün 6 yaşındaki (1,05) hususi (1,00)
+aracı, 4. basamakta (1,00):
+`4.500 × 1,35 × 1,00 × 1,05 × 1,00 × 1,00 = 6.378,75 ₺ net`, `318,94 ₺ vergi`, `6.697,69 ₺ brüt`.
+Bu ve benzeri örnekler `PremiumPackageTest` içinde birebir test edilir.
+
+### Tarife tablosu
+
+`TARIFF_PARAMETER` tek ve generic bir tablodur. Bir satır iki şekilden birindedir:
+
+- **Aralık:** `min_value..max_value` (dahil). Örnek: `DRIVER_AGE 18..25 → 1,40`.
+- **Kategori:** `param_key`. Örnek: `USAGE_TYPE TAXI → 1,60`.
+
+`valid_from` / `valid_to` sayesinde tarife versiyonlanabilir. Yeni tarife eklemek için kod değişikliği gerekmez.
+
+### API
+
+```sql
+-- Net prim (SQL'den de çağrılabilir)
+SELECT pkg_premium.calculate_premium('CASCO', :customer_id, :vehicle_id, NULL, 4, DATE '2026-06-01') FROM dual;
+
+-- Uygulamanın kullandığı giriş noktası: net, vergi, brüt (OUT parametreleri)
+pkg_premium.calculate(p_product_code, p_customer_id, p_vehicle_id, p_property_id, p_ncd_step, p_start_date,
+                      p_net_premium, p_tax_amount, p_gross_premium);
+
+-- Taksit planı: eşit aylık taksitler, kuruş farkı son taksitte. FORALL ile toplu insert.
+pkg_premium.generate_installments(p_policy_id, p_count DEFAULT NULL, p_created_by DEFAULT 'system');
+```
+
+## PKG_POLICY
+
+```mermaid
+stateDiagram-v2
+    [*] --> QUOTE: teklif (Java)
+    QUOTE --> ACTIVE: issue_policy
+    ACTIVE --> SUSPENDED: gecikmiş taksit (batch)
+    SUSPENDED --> ACTIVE: ödeme
+    ACTIVE --> CANCELLED: cancel_policy
+    SUSPENDED --> CANCELLED: cancel_policy
+    ACTIVE --> EXPIRED: süre sonu (batch)
+    SUSPENDED --> EXPIRED: süre sonu (batch)
+    ACTIVE --> RENEWED: yenileme (batch)
+    CANCELLED --> [*]
+    EXPIRED --> [*]
+    RENEWED --> [*]
+```
+
+| Prosedür | Ne yapar |
+|---|---|
+| `is_allowed_transition(from, to)` | Geçiş matrisi; 1/0 döner, SQL'den kullanılabilir |
+| `change_status(id, status, user)` | Genel durum değişikliği (batch job'lar için) |
+| `issue_policy(id, user)` | Teklifi doğrular (geçerlilik, başlangıç tarihi, çakışan poliçe), `ACTIVE` yapar, taksit planı üretir |
+| `calculate_refund(id, date)` | `brüt prim × kullanılmayan gün / toplam gün` |
+| `cancel_policy(id, reason, date, user, OUT refund)` | İadeyi hesaplar, poliçeyi `CANCELLED` yapar, ödenmemiş taksitleri iptal eder |
+
+Bütün güncellemeler `updated_at`, `updated_by` ve `version` kolonlarını da günceller. Böylece JPA'nın optimistic
+locking'i ve audit kayıtları PL/SQL değişikliklerini de görür.
+
+## Hata yönetimi
+
+PL/SQL hataları tek formatta fırlatılır:
+
+```
+RAISE_APPLICATION_ERROR(-20004, 'POLICY_NOT_QUOTE|Sadece teklif durumundaki kayıtlar poliçeleştirilebilir.')
+```
+
+| Numara | Anlamı | API cevabı |
+|---|---|---|
+| -20001 | Kayıt bulunamadı (`POLICY_NOT_FOUND`, `CUSTOMER_NOT_FOUND`...) | 404 |
+| -20002 | Doğrulama (`VEHICLE_REQUIRED`, `QUOTE_EXPIRED`, `INVALID_CANCEL_DATE`...) | 422 |
+| -20003 | Tarife bulunamadı (`TARIFF_NOT_FOUND`) | 422 |
+| -20004 | Geçersiz durum (`POLICY_NOT_QUOTE`, `INVALID_STATUS_TRANSITION`...) | 422 |
+
+Java tarafında `PlsqlErrors` mesajı ayrıştırır ve `BusinessException(code, message)` üretir. Sonuç RFC 7807
+`ProblemDetail` olarak döner:
+
+```json
+{ "status": 422, "title": "İş kuralı ihlali", "code": "TARIFF_NOT_FOUND",
+  "detail": "Sürücü yaşı (17) için tarife bulunmuyor." }
+```
+
+Java servis katmanı bazı kontrolleri (araç sahibi, ürün-varlık uyumu) önceden yapar; kullanıcıya erken ve net hata
+vermek içindir. PL/SQL aynı kontrolleri tekrar yapar ve son sözü söyler.
+
+## Audit trigger'ları
+
+`POLICY` ve `CLAIM` tablolarındaki her `INSERT/UPDATE/DELETE` için `AUDIT_LOG`'a bir satır yazılır:
+
+| Kolon | İçerik |
+|---|---|
+| `old_values` / `new_values` | İlgili kolonların JSON görüntüsü (`JSON_OBJECT ... RETURNING CLOB`) |
+| `changed_by` | Satırın `updated_by` / `created_by` değeri; silmede veritabanı oturum kullanıcısı |
+
+```sql
+SELECT changed_at, changed_by,
+       JSON_VALUE(old_values, '$.status') AS old_status,
+       JSON_VALUE(new_values, '$.status') AS new_status
+  FROM audit_log
+ WHERE table_name = 'POLICY' AND record_id = :id
+ ORDER BY id;
+```
+
+## Java entegrasyonu
+
+```
+PolicyService ──► PremiumEngine   ──► PlsqlPremiumEngine   ──► PKG_PREMIUM.CALCULATE
+              └─► PolicyLifecycle ──► PlsqlPolicyLifecycle ──► PKG_POLICY.ISSUE_POLICY / CANCEL_POLICY
+```
+
+- `SimpleJdbcCall` parametreleri açıkça tanımlanır (`withoutProcedureColumnMetaDataAccess`). Çağrı açılışta bir
+  kez derlenir, veri sözlüğüne erişim gerekmez.
+- PL/SQL, Hibernate'in henüz yazmadığı satırları göremez. JDBC çağrıları da Hibernate'in otomatik flush'ını
+  tetiklemez. Bu yüzden `PolicyService` PL/SQL'den önce `flush()` yapar. Satırları değiştiren çağrılardan sonra
+  da persistence context'i temizler (`clear()`), böylece eski entity dönmez.
+
+## Testler
+
+| Test | Kapsam |
+|---|---|
+| `PremiumPackageTest` | Elle hesaplanmış örneklerle bütün ürünler, minimum prim, kurumsal müşteri, tarife dışı yaş, geçersiz girdiler |
+| `PolicyPackageTest` | Geçiş matrisi, poliçeleştirme ve taksit planı, gün esaslı iade, iptal, audit trigger'ı |
+| `DatabaseMigrationTest` | Bütün paket ve trigger'ların hatasız derlendiği (`USER_ERRORS` boş, `INVALID` nesne yok) |
+| `PlsqlErrorsTest` | ORA-20xxx mesajlarının API hatalarına çevrilmesi |
+
+Son test önemlidir: Oracle derleme hatasını uyarı olarak bildirir ("created with compilation errors"). Yani Flyway,
+bozuk bir paketle de başarılı bitebilir. Bu test o durumu yakalar.
