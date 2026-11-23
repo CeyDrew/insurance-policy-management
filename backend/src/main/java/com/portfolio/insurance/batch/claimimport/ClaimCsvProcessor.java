@@ -1,5 +1,6 @@
 package com.portfolio.insurance.batch.claimimport;
 
+import com.portfolio.insurance.claim.ClaimCoverage;
 import org.springframework.batch.infrastructure.item.ItemProcessor;
 import org.springframework.dao.EmptyResultDataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -73,14 +74,10 @@ class ClaimCsvProcessor implements ItemProcessor<ClaimCsvLine, ClaimImportItem> 
         }
 
         PolicyTerm policy = findPolicy(policyNumber);
-        if ("QUOTE".equals(policy.status())) {
-            throw new ClaimImportException(policyNumber + " bir tekliftir, poliçeleşmemiş.");
-        }
-        LocalDate coverageEnd = policy.cancelledAt() != null ? policy.cancelledAt().toLocalDate() : policy.endDate();
-        if (incidentDate.isBefore(policy.startDate()) || !incidentDate.isBefore(coverageEnd)) {
-            throw new ClaimImportException("Hasar tarihi poliçe teminat süresi dışında (" + policy.startDate() + " - "
-                    + coverageEnd + ").");
-        }
+        ClaimCoverage.check(policy.status(), policy.startDate(), policy.endDate(), policy.cancelledAt(), incidentDate,
+                today).ifPresent(reason -> {
+            throw new ClaimImportException(reason);
+        });
 
         String key = policy.id() + "|" + incidentDate + "|" + description.toLowerCase(Locale.ROOT);
         int firstLine = seenInFile.computeIfAbsent(key, k -> line.lineNumber());

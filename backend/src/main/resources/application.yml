@@ -33,8 +33,8 @@ spring:
       initialize-schema: never # BATCH_* tables come from Flyway (V10)
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 5MB
+      max-file-size: 10MB
+      max-request-size: 11MB
 
 app:
   security:
@@ -57,6 +57,10 @@ app:
         policyExpirationJob: 0 15 1 * * *
         policyRenewalJob: 0 30 1 * * *
         monthlyProductionReportJob: 0 0 6 1 * *
+
+  claims:
+    document-dir: ${CLAIM_DOCUMENT_DIR:./data/claim-documents}
+    max-document-size: 10MB
 
 springdoc:
   swagger-ui:
