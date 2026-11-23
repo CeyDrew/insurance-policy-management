@@ -64,6 +64,7 @@
   align-items: flex-start;
 
   mat-icon {
+    flex: none;
     color: var(--mat-sys-primary);
   }
 
