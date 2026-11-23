@@ -1,0 +1,241 @@
+<header class="page-header">
+  <div>
+    <h1>Gösterge Paneli</h1>
+    @if (data.value(); as d) {
+      <p class="subtitle">
+        {{ d.generatedAt | date: 'dd.MM.yyyy HH:mm' }} itibarıyla.
+        @if (d.productionRefreshedAt) {
+          Aylık üretim verisi {{ d.productionRefreshedAt | date: 'dd.MM.yyyy HH:mm' }} tarihinde
+          hesaplandı.
+        }
+      </p>
+    }
+  </div>
+  <div class="actions">
+    <button mat-stroked-button (click)="data.reload()" [disabled]="data.isLoading()">
+      <mat-icon>refresh</mat-icon> Yenile
+    </button>
+    @if (isAdmin) {
+      <button
+        mat-flat-button
+        (click)="refresh()"
+        [disabled]="refreshing()"
+        title="Materialized view'ları yeniden hesaplar"
+      >
+        <mat-icon>calculate</mat-icon> Raporları yeniden hesapla
+      </button>
+    }
+  </div>
+</header>
+
+@if (data.isLoading() || refreshing()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+}
+
+@if (data.value(); as d) {
+  <section class="tiles" aria-label="Temel göstergeler">
+    @for (tile of tiles(); track tile.label) {
+      <mat-card appearance="outlined" class="tile">
+        <div class="tile-head">
+          <span class="tile-label">{{ tile.label }}</span>
+          <mat-icon aria-hidden="true">{{ tile.icon }}</mat-icon>
+        </div>
+        <div class="tile-value">
+          @if (tile.link) {
+            <a [routerLink]="tile.link">{{ tile.value }}</a>
+          } @else {
+            {{ tile.value }}
+          }
+          @if (tile.trend !== undefined && tile.trend !== null) {
+            <span class="trend" [class.down]="tile.trend < 0">
+              <mat-icon aria-hidden="true">{{
+                tile.trend < 0 ? 'arrow_downward' : 'arrow_upward'
+              }}</mat-icon>
+              {{ percent(tile.trend < 0 ? -tile.trend : tile.trend) }}
+              <span class="sr-only">{{ tile.trend < 0 ? 'düşüş' : 'artış' }}</span>
+            </span>
+          }
+        </div>
+        @if (tile.detail) {
+          <div class="tile-detail">{{ tile.detail }}</div>
+        }
+      </mat-card>
+    }
+  </section>
+
+  <section class="grid">
+    <mat-card appearance="outlined" class="wide">
+      <mat-card-header>
+        <mat-card-title>Aylık prim üretimi</mat-card-title>
+        <mat-card-subtitle
+          >Son 12 ayda tanzim edilen poliçelerin brüt primi, ürün bazında</mat-card-subtitle
+        >
+      </mat-card-header>
+      <mat-card-content>
+        <app-chart
+          [config]="productionConfig()"
+          label="Son 12 ayın ürün bazında aylık brüt prim üretimi, yığılmış sütun grafik"
+        />
+        <details>
+          <summary>Tablo olarak göster</summary>
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th scope="col">Ay</th>
+                  @for (p of d.productMix; track p.productCode) {
+                    <th scope="col" class="num">{{ p.productName }}</th>
+                  }
+                  <th scope="col" class="num">Toplam</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (month of productionMonths(); track month) {
+                  <tr>
+                    <th scope="row">{{ monthLabel(month) }}</th>
+                    @for (p of d.productMix; track p.productCode) {
+                      <td class="num">{{ money(productionAt(month, p.productCode)) }}</td>
+                    }
+                    <td class="num strong">{{ money(monthTotal(month)) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </details>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Hasar/prim oranı</mat-card-title>
+        <mat-card-subtitle
+          >Gerçekleşen hasar (ödenen + muallak) / kazanılmış prim</mat-card-subtitle
+        >
+      </mat-card-header>
+      <mat-card-content>
+        <app-chart
+          class="short"
+          [config]="lossRatioConfig()"
+          label="Ürün bazında hasar/prim oranı, yatay çubuk grafik"
+        />
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Ürün</th>
+              <th scope="col" class="num">Kazanılmış prim</th>
+              <th scope="col" class="num">Hasar</th>
+              <th scope="col" class="num">Oran</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of d.lossRatios; track row.productCode) {
+              <tr>
+                <th scope="row">
+                  <span class="swatch" [style.background]="colors[row.productCode]"></span
+                  >{{ row.productName }}
+                </th>
+                <td class="num">{{ money(row.earnedPremium) }}</td>
+                <td class="num">{{ money(row.incurredClaims) }}</td>
+                <td class="num strong">{{ percent(row.lossRatio) }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined">
+      <mat-card-header>
+        <mat-card-title>Aktif portföy</mat-card-title>
+        <mat-card-subtitle
+          >Yürürlükteki poliçeler ve brüt primin ürünlere dağılımı</mat-card-subtitle
+        >
+      </mat-card-header>
+      <mat-card-content>
+        <ul class="bars">
+          @for (p of productMix(); track p.productCode) {
+            <li>
+              <div class="bar-label">
+                <span
+                  ><span class="swatch" [style.background]="colors[p.productCode]"></span
+                  >{{ p.productName }}</span
+                >
+                <span class="bar-value">
+                  {{ money(p.activeGrossPremium) }} · {{ p.activePolicies }} poliçe ·
+                  {{ percent(p.share) }}
+                </span>
+              </div>
+              <div class="track">
+                <div
+                  class="fill"
+                  [style.width.%]="p.share * 100"
+                  [style.background]="colors[p.productCode]"
+                ></div>
+              </div>
+            </li>
+          }
+        </ul>
+
+        <h3 class="section-title">Hasar dosyaları</h3>
+        <ul class="bars">
+          @for (s of claimStatuses(); track s.status) {
+            <li>
+              <div class="bar-label">
+                <app-status-badge [status]="s.status" />
+                <span class="bar-value">{{ s.count }} dosya</span>
+              </div>
+              <div class="track">
+                <div class="fill neutral" [style.width.%]="s.width * 100"></div>
+              </div>
+            </li>
+          }
+        </ul>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="wide">
+      <mat-card-header>
+        <mat-card-title>Acente performansı</mat-card-title>
+        <mat-card-subtitle>Tüm dönem; yazılan prime göre sıralı</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Acente</th>
+                <th scope="col" class="num">Teklif</th>
+                <th scope="col" class="num">Poliçe</th>
+                <th scope="col" class="num">Dönüşüm</th>
+                <th scope="col" class="num">Yazılan prim</th>
+                <th scope="col" class="num">İptal</th>
+                <th scope="col" class="num">Hasar/prim</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (a of d.agents; track a.agentName) {
+                <tr>
+                  <th scope="row">{{ a.agentName }}</th>
+                  <td class="num">{{ a.quoteCount }}</td>
+                  <td class="num">{{ a.issuedCount }}</td>
+                  <td class="num">{{ percent(a.conversionRate) }}</td>
+                  <td class="num strong">{{ money(a.grossWritten) }}</td>
+                  <td class="num">{{ a.cancelledCount }}</td>
+                  <td class="num">{{ percent(a.lossRatio) }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="7" class="empty">Henüz acente verisi yok.</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </section>
+}

@@ -166,6 +166,20 @@ Job metadata tabloları Oracle'da. Her job için: reader/processor/writer, chunk
 - `docs/adr/` altında 3-4 karar kaydı (neden PL/SQL'de prim, neden Spring Batch, neden feature paketleme...)
 - **Bitti kriteri:** temiz bir makinede README'yi takip eden biri projeyi 10 dakikada ayağa kaldırabiliyor.
 
+### Faz 10 — Banka tahsilat dosyası entegrasyonu (Spring Batch, ileri seviye)
+Sigorta şirketleri prim tahsilatını bankalarla sabit uzunluklu (positional) dosya alışverişiyle yapar (otomatik ödeme talimatı). Bu faz o akışı simüle eder ve Spring Batch'in ileri özelliklerini gösterir. Dosya formatı kurgusaldır, gerçek bir bankanın formatı kopyalanmaz.
+- **Format:** `docs/bank-file-format.md` içinde kurgusal bir format tanımla: header kaydı (banka kodu, dosya tarihi), detay kayıtları (poliçe no, taksit no, tutar, işlem sonucu kodu, sabit uzunluklu alanlar), trailer kaydı (kayıt sayısı, toplam tutar kontrolü).
+- **collectionRequestExportJob (giden dosya):** vadesi gelen `PENDING` taksitlerden bankaya gönderilecek tahsilat talep dosyasını üretir (`FlatFileItemWriter` + `FormatterLineAggregator`). Header ve trailer callback'leri kullanılır.
+- **collectionResultImportJob (gelen dosya):** bankadan dönen sonuç dosyasını okur (`FixedLengthTokenizer`, `PatternMatchingCompositeLineMapper` ile header/detail/trailer ayrımı).
+  - Trailer doğrulaması: kayıt sayısı ve toplam tutar tutmazsa job `FAILED` olur, hiçbir kayıt işlenmez.
+  - Başarılı satırlar `PKG_PAYMENT` üzerinden tahsil edilir. Reddedilenler (yetersiz bakiye, kapalı hesap...) taksit üzerinde sebep koduyla işaretlenir ve bildirim kaydı açılır.
+  - Idempotency: aynı dosya iki kez yüklenirse ikinci yükleme reddedilir (dosya hash'i + `JobParameters`).
+- **Ölçek:** 1M+ satırlık sonuç dosyası üreten test verisi script'i. Partitioning (`Partitioner` ile satır aralıkları) ve multi-threaded step; tek thread ile süre karşılaştırması `docs/batch-jobs.md`'ye yazılır.
+- **Restart:** job ortada öldürülürse (ör. belirli bir satırda yapay hata bayrağı) yeniden başlatıldığında kaldığı chunk'tan devam eder, çift tahsilat oluşmaz. Bunu kanıtlayan integration test yazılır.
+- **Dosya izleme:** lokal bir `inbox/` klasörüne bırakılan dosyayı otomatik algılayıp job'u tetikleyen basit poller (Spring Integration file inbound adapter veya `@Scheduled` tarama); işlenen dosya `processed/`, hatalı dosya `error/` klasörüne taşınır.
+- **Angular:** tahsilat dosyaları ekranı: yüklenen/üretilen dosyalar, durum, başarılı/reddedilen satır sayısı, red sebepleri dağılımı, dosya indirme.
+- **Bitti kriteri:** talep dosyası üretiliyor, sonuç dosyası yüklenince taksitler doğru güncelleniyor; trailer hatası, mükerrer dosya ve yarıda kesilip restart senaryoları testlerle kanıtlanıyor.
+
 ## Kapsam dışı
 - Sunucu/bulut deploy, domain, HTTPS
 - Gerçek ödeme entegrasyonu, gerçek e-posta/SMS gönderimi
