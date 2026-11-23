@@ -1,0 +1,167 @@
+@if (detail.isLoading() && !detail.hasValue()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+  <a mat-button routerLink="/batch"><mat-icon>arrow_back</mat-icon> Batch işlerine dön</a>
+}
+
+@if (detail.value(); as d) {
+  <header class="page-header">
+    <a
+      mat-icon-button
+      [routerLink]="['/batch/jobs', d.execution.jobName]"
+      aria-label="Çalışma geçmişi"
+    >
+      <mat-icon>arrow_back</mat-icon>
+    </a>
+    <div>
+      <h1>Çalıştırma #{{ d.execution.id }}</h1>
+      <span class="subtitle mono">{{ d.execution.jobName }}</span>
+    </div>
+    <app-batch-status [status]="d.execution.status" [exitCode]="d.execution.exitCode" />
+    <span class="spacer"></span>
+    <a mat-stroked-button routerLink="/batch"><mat-icon>dashboard</mat-icon> Tüm işler</a>
+  </header>
+
+  @if (running()) {
+    <div class="info-banner running">
+      <mat-progress-bar mode="indeterminate" />
+      <span>İş çalışıyor; sayılar otomatik güncelleniyor.</span>
+    </div>
+  }
+  @if (d.execution.status === 'FAILED') {
+    <div class="error-banner" role="alert">
+      <mat-icon>error</mat-icon>
+      <span class="exit-message">{{ d.execution.exitMessage || 'İş hata ile sonlandı.' }}</span>
+    </div>
+  }
+
+  <mat-card appearance="outlined" class="section-card">
+    <mat-card-content>
+      <dl class="facts">
+        <div>
+          <dt>Başlangıç</dt>
+          <dd>{{ d.execution.startTime | date: 'dd.MM.yyyy HH:mm:ss' }}</dd>
+        </div>
+        <div>
+          <dt>Bitiş</dt>
+          <dd>
+            {{ d.execution.endTime ? (d.execution.endTime | date: 'dd.MM.yyyy HH:mm:ss') : '—' }}
+          </dd>
+        </div>
+        <div>
+          <dt>Süre</dt>
+          <dd>{{ d.execution.durationMillis | duration }}</dd>
+        </div>
+        <div>
+          <dt>Okunan</dt>
+          <dd>{{ d.execution.readCount | number }}</dd>
+        </div>
+        <div>
+          <dt>Yazılan</dt>
+          <dd>{{ d.execution.writeCount | number }}</dd>
+        </div>
+        <div>
+          <dt>Atlanan</dt>
+          <dd [class.warn]="d.execution.skipCount > 0">{{ d.execution.skipCount | number }}</dd>
+        </div>
+      </dl>
+      @if ((visibleParameters() | keyvalue).length > 0) {
+        <mat-chip-set class="parameters" aria-label="Parametreler">
+          @for (parameter of visibleParameters() | keyvalue; track parameter.key) {
+            <mat-chip
+              >{{ parameterLabels[parameter.key] }}:
+              {{ formatParameter(parameter.key, parameter.value) }}</mat-chip
+            >
+          }
+        </mat-chip-set>
+      }
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card appearance="outlined" class="section-card">
+    <div class="section-header"><h2>Adımlar</h2></div>
+    <div class="table-scroll">
+      <table mat-table [dataSource]="d.steps">
+        <ng-container matColumnDef="name">
+          <th mat-header-cell *matHeaderCellDef>Adım</th>
+          <td mat-cell *matCellDef="let s" class="mono">{{ s.name }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Durum</th>
+          <td mat-cell *matCellDef="let s">
+            <app-batch-status [status]="s.status" [exitCode]="s.exitCode" />
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="duration">
+          <th mat-header-cell *matHeaderCellDef class="number">Süre</th>
+          <td mat-cell *matCellDef="let s" class="number">{{ s.durationMillis | duration }}</td>
+        </ng-container>
+        <ng-container matColumnDef="read">
+          <th mat-header-cell *matHeaderCellDef class="number">Okunan</th>
+          <td mat-cell *matCellDef="let s" class="number">{{ s.readCount | number }}</td>
+        </ng-container>
+        <ng-container matColumnDef="filter">
+          <th mat-header-cell *matHeaderCellDef class="number">Filtrelenen</th>
+          <td mat-cell *matCellDef="let s" class="number">{{ s.filterCount | number }}</td>
+        </ng-container>
+        <ng-container matColumnDef="write">
+          <th mat-header-cell *matHeaderCellDef class="number">Yazılan</th>
+          <td mat-cell *matCellDef="let s" class="number">{{ s.writeCount | number }}</td>
+        </ng-container>
+        <ng-container matColumnDef="skip">
+          <th mat-header-cell *matHeaderCellDef class="number">Atlanan (okuma/işleme/yazma)</th>
+          <td mat-cell *matCellDef="let s" class="number">
+            {{ s.readSkipCount }} / {{ s.processSkipCount }} / {{ s.writeSkipCount }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="commit">
+          <th mat-header-cell *matHeaderCellDef class="number">Commit</th>
+          <td mat-cell *matCellDef="let s" class="number">{{ s.commitCount | number }}</td>
+        </ng-container>
+        <ng-container matColumnDef="rollback">
+          <th mat-header-cell *matHeaderCellDef class="number">Rollback</th>
+          <td mat-cell *matCellDef="let s" class="number">{{ s.rollbackCount | number }}</td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="stepColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: stepColumns"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="empty" [attr.colspan]="stepColumns.length">Adım henüz başlamadı.</td>
+        </tr>
+      </table>
+    </div>
+  </mat-card>
+
+  @if (isImport()) {
+    <mat-card appearance="outlined" class="section-card">
+      <div class="section-header">
+        <h2>Reddedilen satırlar ({{ d.importErrorCount }})</h2>
+      </div>
+      @if (d.importErrorCount === 0) {
+        <p class="empty">
+          {{ running() ? 'İçe aktarma sürüyor…' : 'Tüm satırlar içe aktarıldı.' }}
+        </p>
+      } @else {
+        <div class="table-scroll">
+          <table mat-table [dataSource]="importErrors.value() ?? []" class="errors">
+            <ng-container matColumnDef="lineNumber">
+              <th mat-header-cell *matHeaderCellDef class="number">Satır</th>
+              <td mat-cell *matCellDef="let e" class="number">{{ e.lineNumber }}</td>
+            </ng-container>
+            <ng-container matColumnDef="message">
+              <th mat-header-cell *matHeaderCellDef>Hata</th>
+              <td mat-cell *matCellDef="let e">{{ e.message }}</td>
+            </ng-container>
+            <ng-container matColumnDef="rawLine">
+              <th mat-header-cell *matHeaderCellDef>Satır içeriği</th>
+              <td mat-cell *matCellDef="let e" class="mono raw">{{ e.rawLine }}</td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="errorColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: errorColumns"></tr>
+          </table>
+        </div>
+      }
+    </mat-card>
+  }
+}

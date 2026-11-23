@@ -85,6 +85,41 @@ export const SHELL_ROUTES: Routes = [
           import('../../features/policies/quote-wizard/quote-wizard').then((m) => m.QuoteWizard),
       },
       {
+        path: 'batch',
+        canActivate: [roleGuard],
+        data: { roles: ['ADMIN'] },
+        children: [
+          {
+            path: '',
+            title: 'Batch işleri',
+            loadComponent: () =>
+              import('../../features/batch/batch-dashboard/batch-dashboard').then(
+                (m) => m.BatchDashboard,
+              ),
+          },
+          {
+            path: 'jobs/:name',
+            title: 'Çalışma geçmişi',
+            loadComponent: () =>
+              import('../../features/batch/job-history/job-history').then((m) => m.JobHistory),
+          },
+          {
+            path: 'executions/:id',
+            title: 'Çalıştırma detayı',
+            loadComponent: () =>
+              import('../../features/batch/execution-detail/execution-detail').then(
+                (m) => m.ExecutionDetail,
+              ),
+          },
+          {
+            path: 'claim-import',
+            title: 'Toplu hasar ihbarı',
+            loadComponent: () =>
+              import('../../features/batch/claim-import/claim-import').then((m) => m.ClaimImport),
+          },
+        ],
+      },
+      {
         path: 'users',
         title: 'Kullanıcılar',
         canActivate: [roleGuard],

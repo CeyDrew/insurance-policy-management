@@ -1,0 +1,44 @@
+@use '../../../shared/styles/form-page';
+
+.subtitle {
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.info-banner.running {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.exit-message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 160px;
+  overflow: auto;
+  font-family: 'Roboto Mono', ui-monospace, monospace;
+  font-size: 12px;
+}
+
+.warn {
+  color: #8a5a00;
+  font-weight: 600;
+}
+
+.parameters {
+  display: block;
+  margin-top: 16px;
+}
+
+.raw {
+  max-width: 420px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--mat-sys-on-surface-variant);
+}
