@@ -1,0 +1,94 @@
+<header class="page-header">
+  <h1>Tahsilat</h1>
+</header>
+
+<form class="filters" [formGroup]="filter">
+  <mat-form-field class="grow" subscriptSizing="dynamic">
+    <mat-label>Ara</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput formControlName="query" placeholder="Poliçe no, müşteri adı/unvanı" />
+  </mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Durum</mat-label>
+    <mat-select formControlName="status">
+      @for (option of statusFilters; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</form>
+
+<mat-card appearance="outlined" class="table-card">
+  @if (list.loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (list.error(); as error) {
+    <p class="message error">{{ error }}</p>
+  } @else {
+    <div class="table-scroll">
+      <table mat-table [dataSource]="list.rows()">
+        <ng-container matColumnDef="policyNumber">
+          <th mat-header-cell *matHeaderCellDef>Poliçe no</th>
+          <td mat-cell *matCellDef="let row">
+            <a class="row-link mono" [routerLink]="['/policies', row.policyId]">{{
+              row.policyNumber
+            }}</a>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="customerName">
+          <th mat-header-cell *matHeaderCellDef>Müşteri</th>
+          <td mat-cell *matCellDef="let row">{{ row.customerName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="installmentNo">
+          <th mat-header-cell *matHeaderCellDef class="number">Taksit</th>
+          <td mat-cell *matCellDef="let row" class="number">{{ row.installmentNo }}</td>
+        </ng-container>
+        <ng-container matColumnDef="dueDate">
+          <th mat-header-cell *matHeaderCellDef>Vade</th>
+          <td mat-cell *matCellDef="let row">
+            {{ row.dueDate | date: 'dd.MM.yyyy' }}
+            @if (row.daysOverdue > 0) {
+              <span class="late">{{ row.daysOverdue }} gün gecikme</span>
+            }
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="amount">
+          <th mat-header-cell *matHeaderCellDef class="number">Tutar</th>
+          <td mat-cell *matCellDef="let row" class="number">{{ row.amount | currency }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Durum</th>
+          <td mat-cell *matCellDef="let row">
+            <app-status-badge [status]="row.status" kind="installment" />
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="actions">
+          <th mat-header-cell *matHeaderCellDef></th>
+          <td mat-cell *matCellDef="let row" class="number">
+            @if (isPayable(row)) {
+              <button mat-stroked-button (click)="collect(row)">
+                <mat-icon>payments</mat-icon> Tahsil et
+              </button>
+            } @else if (row.paidAt) {
+              <span class="paid-at">{{ row.paidAt | date: 'dd.MM.yyyy' }}</span>
+            }
+          </td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="message" [attr.colspan]="columns.length">
+            {{ list.loading() ? 'Yükleniyor…' : 'Kriterlere uyan taksit bulunamadı.' }}
+          </td>
+        </tr>
+      </table>
+    </div>
+    <mat-paginator
+      [length]="list.page()?.totalElements ?? 0"
+      [pageIndex]="list.page()?.page ?? 0"
+      [pageSize]="list.page()?.size ?? 20"
+      [pageSizeOptions]="[10, 20, 50]"
+      (page)="list.onPage($event)"
+    />
+  }
+</mat-card>
