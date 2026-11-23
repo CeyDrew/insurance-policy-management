@@ -1,6 +1,6 @@
 import { InstallmentStatus, PolicyStatus } from '../policies/policy.models';
 
-export type PaymentMethod = 'CREDIT_CARD' | 'BANK_TRANSFER' | 'CASH';
+export type PaymentMethod = 'CREDIT_CARD' | 'BANK_TRANSFER' | 'CASH' | 'DIRECT_DEBIT';
 
 export interface InstallmentRow {
   id: number;

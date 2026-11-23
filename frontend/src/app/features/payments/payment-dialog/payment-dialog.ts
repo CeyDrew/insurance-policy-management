@@ -129,7 +129,10 @@ export class PaymentDialog {
   private readonly dialogRef = inject<MatDialogRef<PaymentDialog, PaymentResult>>(MatDialogRef);
   private readonly payments = inject(PaymentService);
 
-  protected readonly methods = options(PAYMENT_METHOD_LABELS);
+  // auto-debit payments only arrive in bank result files
+  protected readonly methods = options(PAYMENT_METHOD_LABELS).filter(
+    (m) => m.value !== 'DIRECT_DEBIT',
+  );
   protected readonly saving = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly form = inject(NonNullableFormBuilder).group({
