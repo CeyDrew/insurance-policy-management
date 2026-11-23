@@ -1,0 +1,5 @@
+# Test-only settings. The JWT key below is a throwaway test value, never used outside tests.
+app:
+  security:
+    jwt:
+      secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQta2V5LWZvci1pbnRlZ3JhdGlvbi10ZXN0cw==
