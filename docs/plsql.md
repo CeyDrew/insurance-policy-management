@@ -12,6 +12,7 @@ Java servis katmanı bu kuralları yeniden yazmaz; paketleri `SimpleJdbcCall` il
 | `PKG_BATCH` | `R__5_pkg_batch.sql` | Büyük hacim için set-based gecikme işaretleme (`BULK COLLECT` / `FORALL`) |
 | `PKG_CLAIM` | `R__6_pkg_claim.sql` | Hasar durum akışı, ödeme ve hasarsızlık basamağı güncellemesi |
 | `PKG_PAYMENT` | `R__7_pkg_payment.sql` | Taksit tahsilatı ve askıdaki poliçenin yeniden yürürlüğe girmesi |
+| Raporlama view'ları, `PKG_REPORTING` | `R__8_reporting_views.sql` | Dashboard: kazanılmış prim, hasar/prim oranı, acente performansı, aylık üretim |
 
 Paket ve trigger'lar Flyway **repeatable** (`R__`) migration'larıdır: dosya değiştiğinde bir sonraki açılışta
 yeniden derlenir. Tablolar ise sürümlü (`V__`) migration'lardadır.
@@ -131,6 +132,23 @@ stateDiagram-v2
 - Ödenmiş veya iptal edilmiş taksit tahsil edilemez. Tahsilat referansı `TAH-yyyyMMdd-<id>` biçimindedir.
 - Askıdaki (`SUSPENDED`) poliçenin son gecikmiş taksiti ödenince poliçe `PKG_POLICY.CHANGE_STATUS` ile tekrar
   `ACTIVE` olur ve `reactivated = 1` döner. Müşteriye `PAYMENT_RECEIVED` bildirimi yazılır.
+
+## Raporlama
+
+| Nesne | Ne verir |
+|---|---|
+| `V_POLICY_EARNED` | Poliçe başına kazanılmış prim: geçen gün / poliçe süresi oranında. İptal edilen poliçede iade edilmeyen kısım. |
+| `V_POLICY_INCURRED` | Poliçe başına ödenen hasar ve muallak (onaylıysa onaylanan, incelemedeyse tahmini tutar) |
+| `V_LOSS_RATIO_BY_PRODUCT` | Ürün bazında hasar/prim oranı = (ödenen + muallak) / kazanılmış prim |
+| `V_AGENT_PERFORMANCE` | Acente başına teklif, poliçe, dönüşüm oranı, yazılan prim, iptal ve hasar/prim oranı |
+| `MV_PREMIUM_PRODUCTION_MONTHLY` | Ay × ürün prim üretimi. Materialized view: bir kez hesaplanır, `REFRESH COMPLETE ON DEMAND`. |
+
+Materialized view `PKG_REPORTING.REFRESH_DASHBOARD` ile yeniden hesaplanır: her gece (`dashboardRefresh` cron,
+batch zamanlamasıyla birlikte açılır) ya da yöneticinin dashboard'daki "Raporları yeniden hesapla" butonuyla.
+Materialized view için `CREATE OR REPLACE` olmadığı için repeatable migration onu önce silip yeniden oluşturur.
+
+Hasar/prim oranı yazılan değil **kazanılmış** prim üzerinden hesaplanır: yılın ortasında yazılan bir poliçenin
+priminin henüz yarısı "kazanılmış"tır, oranı yazılan prime bölmek riskli ürünleri olduğundan iyi gösterir.
 
 ## Saat dilimi
 
