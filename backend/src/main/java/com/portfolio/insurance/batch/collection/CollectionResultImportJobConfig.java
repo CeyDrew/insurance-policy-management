@@ -23,6 +23,7 @@ import org.springframework.batch.infrastructure.repeat.RepeatStatus;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.NestedExceptionUtils;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.task.SimpleAsyncTaskExecutor;
 import org.springframework.dao.TransientDataAccessException;
@@ -202,7 +203,8 @@ class CollectionResultImportJobConfig {
                     .filter(e -> !(e instanceof JobExecutionException))
                     .findFirst()
                     .or(() -> execution.getAllFailureExceptions().stream().findFirst())
-                    .map(Throwable::getMessage)
+                    // Spring Batch wraps it ("Unable to process chunk"); the innermost cause is the real reason
+                    .map(e -> NestedExceptionUtils.getMostSpecificCause(e).getMessage())
                     .orElse(execution.getExitStatus().getExitCode());
             String message = "Yarıda kesildi, yeniden başlatılabilir: " + reason;
             jdbc.update("UPDATE collection_file SET error_message = ?, job_execution_id = ? WHERE id = ?",

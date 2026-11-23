@@ -27,8 +27,10 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -322,7 +324,7 @@ class CollectionJobsIntegrationTest {
     }
 
     private Path copyOf(Path file) throws Exception {
-        return Files.copy(file, Files.createTempFile(dir, "copy-", ".txt"), java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        return Files.copy(file, Files.createTempFile(dir, "copy-", ".txt"), StandardCopyOption.REPLACE_EXISTING);
     }
 
     private JobParameters importParameters(Path file, int partitions) {
@@ -367,7 +369,7 @@ class CollectionJobsIntegrationTest {
     }
 
     private static Map<String, Long> numbers(Map<String, Object> row) {
-        Map<String, Long> result = new java.util.HashMap<>();
+        Map<String, Long> result = new HashMap<>();
         row.forEach((key, value) -> {
             if (value instanceof Number number && !(value instanceof BigDecimal decimal && decimal.scale() > 0)) {
                 result.put(key, number.longValue());

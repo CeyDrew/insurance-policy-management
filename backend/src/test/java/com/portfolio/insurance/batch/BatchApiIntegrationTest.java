@@ -41,7 +41,7 @@ class BatchApiIntegrationTest {
     void listsJobsForAdminsOnly() throws Exception {
         mvc.perform(get("/api/batch/jobs").with(ADMIN))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(6))
+                .andExpect(jsonPath("$.length()").value(8))
                 .andExpect(jsonPath("$[*].name", hasItems(BatchJobs.POLICY_RENEWAL, BatchJobs.OVERDUE_INSTALLMENT,
                         BatchJobs.OVERDUE_INSTALLMENT_PLSQL, BatchJobs.POLICY_EXPIRATION, BatchJobs.CLAIM_IMPORT,
                         BatchJobs.MONTHLY_PRODUCTION_REPORT)));
