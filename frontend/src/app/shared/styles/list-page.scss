@@ -77,3 +77,23 @@ table {
     color: var(--mat-sys-error);
   }
 }
+
+.late {
+  display: block;
+  color: var(--mat-sys-error);
+  font: var(--mat-sys-label-small);
+}
+
+.paid-at {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
+
+.sub {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
+
+.filters .toggle {
+  align-self: center;
+}

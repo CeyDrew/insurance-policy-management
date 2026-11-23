@@ -46,6 +46,29 @@ export const INSTALLMENT_STATUS_LABELS = {
   CANCELLED: 'İptal',
 } as const;
 
+export const CLAIM_STATUS_LABELS = {
+  REPORTED: 'İhbar edildi',
+  IN_REVIEW: 'İncelemede',
+  APPROVED: 'Onaylandı',
+  REJECTED: 'Reddedildi',
+  PAID: 'Ödendi',
+} as const;
+
+export const DOCUMENT_TYPE_LABELS = {
+  ACCIDENT_REPORT: 'Kaza tespit tutanağı',
+  PHOTO: 'Fotoğraf',
+  INVOICE: 'Fatura',
+  EXPERT_REPORT: 'Eksper raporu',
+  MEDICAL_REPORT: 'Sağlık raporu',
+  OTHER: 'Diğer',
+} as const;
+
+export const PAYMENT_METHOD_LABELS = {
+  CREDIT_CARD: 'Kredi kartı',
+  BANK_TRANSFER: 'Havale / EFT',
+  CASH: 'Nakit',
+} as const;
+
 /** Options for mat-select, in declaration order. */
 export function options<K extends string>(
   labels: Record<K, string>,

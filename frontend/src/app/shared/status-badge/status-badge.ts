@@ -1,5 +1,5 @@
 import { Component, computed, input } from '@angular/core';
-import { INSTALLMENT_STATUS_LABELS, POLICY_STATUS_LABELS } from '../labels';
+import { CLAIM_STATUS_LABELS, INSTALLMENT_STATUS_LABELS, POLICY_STATUS_LABELS } from '../labels';
 
 type Tone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
@@ -13,11 +13,19 @@ const TONES: Record<string, Tone> = {
   PENDING: 'info',
   PAID: 'success',
   OVERDUE: 'danger',
+  REPORTED: 'info',
+  IN_REVIEW: 'warning',
+  APPROVED: 'success',
+  REJECTED: 'danger',
 };
 
-const LABELS: Record<string, string> = { ...INSTALLMENT_STATUS_LABELS, ...POLICY_STATUS_LABELS };
+const LABELS: Record<string, string> = {
+  ...INSTALLMENT_STATUS_LABELS,
+  ...POLICY_STATUS_LABELS,
+  ...CLAIM_STATUS_LABELS,
+};
 
-/** Coloured pill for policy and installment statuses. */
+/** Coloured pill for policy, installment and claim statuses. */
 @Component({
   selector: 'app-status-badge',
   template: `<span class="badge" [class]="'badge tone-' + tone()">{{ label() }}</span>`,
