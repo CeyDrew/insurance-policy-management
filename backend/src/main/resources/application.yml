@@ -26,6 +26,15 @@ spring:
     web:
       pageable:
         max-page-size: 100
+  batch:
+    job:
+      enabled: false # jobs are started by the scheduler or the REST API, never at startup
+    jdbc:
+      initialize-schema: never # BATCH_* tables come from Flyway (V10)
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 5MB
 
 app:
   security:
@@ -34,6 +43,20 @@ app:
       issuer: insurance-api
       access-token-ttl: 15m
       refresh-token-ttl: 7d
+  batch:
+    chunk-size: 100
+    skip-limit: 100
+    renewal-days-ahead: 30
+    suspend-after-overdue: 2
+    import-dir: ${BATCH_IMPORT_DIR:./data/imports}
+    report-dir: ${BATCH_REPORT_DIR:./data/reports}
+    scheduling:
+      enabled: ${BATCH_SCHEDULING_ENABLED:false}
+      cron:
+        overdueInstallmentJob: 0 0 1 * * *
+        policyExpirationJob: 0 15 1 * * *
+        policyRenewalJob: 0 30 1 * * *
+        monthlyProductionReportJob: 0 0 6 1 * *
 
 springdoc:
   swagger-ui:
