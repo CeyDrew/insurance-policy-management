@@ -5,6 +5,7 @@ import com.portfolio.insurance.asset.Property;
 import com.portfolio.insurance.asset.Vehicle;
 import com.portfolio.insurance.common.error.BusinessException;
 import com.portfolio.insurance.common.error.ResourceNotFoundException;
+import com.portfolio.insurance.common.plsql.DatabaseSideChanges;
 import com.portfolio.insurance.common.web.PageResponse;
 import com.portfolio.insurance.customer.Customer;
 import com.portfolio.insurance.customer.CustomerService;
@@ -16,7 +17,6 @@ import com.portfolio.insurance.reference.ProductCode;
 import com.portfolio.insurance.reference.ReferenceService;
 import com.portfolio.insurance.user.AppUser;
 import com.portfolio.insurance.user.AppUserRepository;
-import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -48,7 +48,7 @@ public class PolicyService {
     private final AppUserRepository userRepository;
     private final PremiumEngine premiumEngine;
     private final PolicyLifecycle policyLifecycle;
-    private final EntityManager entityManager;
+    private final DatabaseSideChanges databaseSideChanges;
     private final Clock clock;
 
     public PageResponse<PolicySummaryDto> search(String query, PolicyStatus status, ProductCode productCode,
@@ -89,10 +89,10 @@ public class PolicyService {
         }
 
         int ncdStep = previousNcdStep(product.getCode(), customer.getId(), insured);
-        // The engine runs in PL/SQL and only sees flushed rows (JDBC calls do not trigger Hibernate auto-flush).
-        entityManager.flush();
-        PremiumResult premium = premiumEngine.calculatePremium(new PremiumRequest(product.getCode(), customer.getId(),
-                insured.vehicleId(), insured.propertyId(), ncdStep, request.startDate()));
+        // The engine runs in PL/SQL and only sees flushed rows.
+        PremiumResult premium = databaseSideChanges.read(() -> premiumEngine.calculatePremium(new PremiumRequest(
+                product.getCode(), customer.getId(), insured.vehicleId(), insured.propertyId(), ncdStep,
+                request.startDate())));
 
         Policy policy = Policy.quote(policyRepository.nextId(), product, customer, insured.vehicle(),
                 insured.property(), currentUser(username), request.startDate(), ncdStep, request.installmentCount(),
@@ -104,25 +104,15 @@ public class PolicyService {
     /** QUOTE -> ACTIVE and creation of the installment plan (PKG_POLICY.ISSUE_POLICY). */
     @Transactional
     public PolicyDto issue(Long id, String username) {
-        runInDatabase(() -> policyLifecycle.issue(id, username));
+        databaseSideChanges.run(() -> policyLifecycle.issue(id, username));
         return findById(id);
     }
 
     /** ACTIVE/SUSPENDED -> CANCELLED with a day-based refund (PKG_POLICY.CANCEL_POLICY). */
     @Transactional
     public PolicyDto cancel(Long id, CancelPolicyRequest request, String username) {
-        runInDatabase(() -> policyLifecycle.cancel(id, request.reason().trim(), LocalDate.now(clock), username));
+        databaseSideChanges.run(() -> policyLifecycle.cancel(id, request.reason().trim(), LocalDate.now(clock), username));
         return findById(id);
-    }
-
-    /**
-     * Runs a PL/SQL operation that modifies rows behind Hibernate's back: pending changes are flushed first so
-     * the procedure sees them, and the persistence context is cleared afterwards so no stale entity is returned.
-     */
-    private void runInDatabase(Runnable operation) {
-        entityManager.flush();
-        operation.run();
-        entityManager.clear();
     }
 
     private Policy getPolicy(Long id) {
