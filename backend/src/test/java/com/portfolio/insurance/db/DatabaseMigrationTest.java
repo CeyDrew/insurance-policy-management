@@ -42,14 +42,17 @@ class DatabaseMigrationTest {
         List<String> errors = jdbc.queryForList(
                 "SELECT name || ' line ' || line || ': ' || text FROM user_errors ORDER BY name, sequence", String.class);
         List<String> invalid = jdbc.queryForList(
-                "SELECT object_type || ' ' || object_name FROM user_objects WHERE status <> 'VALID'", String.class);
+                // A materialized view is reported INVALID as soon as its base tables change; that only means "stale".
+                "SELECT object_type || ' ' || object_name FROM user_objects WHERE status <> 'VALID'"
+                        + " AND object_type <> 'MATERIALIZED VIEW'", String.class);
         List<String> plsql = jdbc.queryForList(
                 "SELECT object_name FROM user_objects WHERE object_type IN ('PACKAGE BODY', 'TRIGGER') ORDER BY 1",
                 String.class);
 
         assertThat(errors).isEmpty();
         assertThat(invalid).isEmpty();
-        assertThat(plsql).contains("PKG_ERRORS", "PKG_POLICY", "PKG_PREMIUM", "TRG_CLAIM_AUDIT", "TRG_POLICY_AUDIT");
+        assertThat(plsql).contains("PKG_ERRORS", "PKG_POLICY", "PKG_PREMIUM", "PKG_CLAIM", "PKG_PAYMENT",
+                "PKG_REPORTING", "TRG_CLAIM_AUDIT", "TRG_POLICY_AUDIT");
     }
 
     @Test
