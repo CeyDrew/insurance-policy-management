@@ -1,0 +1,259 @@
+@if (detail.isLoading() && !detail.hasValue()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+}
+
+@if (file(); as f) {
+  <header class="page-header">
+    <div class="title">
+      <a mat-icon-button routerLink="/collection-files" aria-label="Tahsilat dosyalarına dön">
+        <mat-icon>arrow_back</mat-icon>
+      </a>
+      <div>
+        <h1 class="mono">{{ f.fileName }}</h1>
+        <div class="sub">
+          {{ directionLabels[f.direction] }} · dosya tarihi {{ f.fileDate | date: 'dd.MM.yyyy' }} ·
+          {{ f.createdBy }}
+        </div>
+      </div>
+      <app-file-status [file]="f" />
+    </div>
+    <div class="actions">
+      @if (f.interrupted) {
+        <button mat-flat-button (click)="restart()" [disabled]="restarting()">
+          <mat-icon>replay</mat-icon> Yeniden başlat
+        </button>
+      }
+      @if (f.status !== 'GENERATING') {
+        <button mat-stroked-button (click)="download()"><mat-icon>download</mat-icon> İndir</button>
+      }
+    </div>
+  </header>
+
+  @if (f.errorMessage) {
+    <div [class]="f.status === 'FAILED' ? 'error-banner' : 'warning-banner'" role="alert">
+      <mat-icon>{{ f.status === 'FAILED' ? 'error' : 'pause_circle' }}</mat-icon>
+      <span>
+        @if (f.status === 'FAILED') {
+          Dosya reddedildi, hiçbir satır işlenmedi:
+        }
+        {{ f.errorMessage }}
+      </span>
+    </div>
+  }
+
+  <section class="grid">
+    <mat-card appearance="outlined">
+      <mat-card-header><mat-card-title>Özet</mat-card-title></mat-card-header>
+      <mat-card-content>
+        <dl class="numbers">
+          <div>
+            <dt>Satır</dt>
+            <dd>{{ f.recordCount ?? '—' }}</dd>
+          </div>
+          <div>
+            <dt>Kontrol toplamı</dt>
+            <dd>{{ f.totalAmount | currency: 'TRY' : 'symbol-narrow' }}</dd>
+          </div>
+          @if (f.direction === 'INBOUND' && f.status !== 'FAILED') {
+            <div>
+              <dt>Tahsil edilen</dt>
+              <dd>
+                {{ f.collectedCount | number }} satır ·
+                {{ f.collectedAmount | currency: 'TRY' : 'symbol-narrow' }}
+              </dd>
+            </div>
+            <div>
+              <dt>Reddedilen</dt>
+              <dd>{{ f.rejectedCount | number }} satır</dd>
+            </div>
+            <div>
+              <dt>Hatalı satır</dt>
+              <dd>{{ f.errorCount | number }}</dd>
+            </div>
+          }
+          @if (f.requestFileId) {
+            <div>
+              <dt>Cevapladığı talep</dt>
+              <dd>
+                <a [routerLink]="['/collection-files', f.requestFileId]"
+                  >Talep dosyası #{{ f.requestFileId }}</a
+                >
+              </dd>
+            </div>
+          }
+          @if (f.completedAt) {
+            <div>
+              <dt>Tamamlanma</dt>
+              <dd>{{ f.completedAt | date: 'dd.MM.yyyy HH:mm:ss' }}</dd>
+            </div>
+          }
+          @if (f.jobExecutionId) {
+            <div>
+              <dt>Batch çalıştırması</dt>
+              <dd>
+                <a [routerLink]="['/batch/executions', f.jobExecutionId]"
+                  >#{{ f.jobExecutionId }}</a
+                >
+              </dd>
+            </div>
+          }
+        </dl>
+
+        @if (shares(); as s) {
+          <div class="split" aria-hidden="true">
+            <span class="collected" [style.width.%]="s.collected * 100"></span>
+            <span class="rejected" [style.width.%]="s.rejected * 100"></span>
+            <span class="error" [style.width.%]="s.error * 100"></span>
+          </div>
+          <ul class="legend">
+            <li>
+              <span class="swatch collected"></span>Tahsil {{ s.collected | percent: '1.0-1' }}
+            </li>
+            <li><span class="swatch rejected"></span>Red {{ s.rejected | percent: '1.0-1' }}</li>
+            <li><span class="swatch error"></span>Hatalı {{ s.error | percent: '1.0-1' }}</li>
+          </ul>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    @if (f.direction === 'INBOUND') {
+      <mat-card appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Red sebepleri</mat-card-title>
+          <mat-card-subtitle>Bankanın sonuç kodlarına göre</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <ul class="bars">
+            @for (r of detail.value()?.rejectReasons ?? []; track r.code) {
+              <li>
+                <div class="bar-label">
+                  <span
+                    ><span class="code">{{ r.code }}</span> {{ r.description }}</span
+                  >
+                  <span class="sub">
+                    {{ r.count | number }} satır ·
+                    {{ r.amount | currency: 'TRY' : 'symbol-narrow' }}
+                  </span>
+                </div>
+                <div class="track">
+                  <div class="fill" [style.width.%]="(r.count / maxReason()) * 100"></div>
+                </div>
+              </li>
+            } @empty {
+              <li class="sub">Reddedilen satır yok.</li>
+            }
+          </ul>
+        </mat-card-content>
+      </mat-card>
+    } @else {
+      <mat-card appearance="outlined">
+        <mat-card-header>
+          <mat-card-title>Bankanın cevapları</mat-card-title>
+          <mat-card-subtitle>Bu talebe dönen sonuç dosyaları</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <ul class="answers">
+            @for (r of detail.value()?.resultFiles ?? []; track r.id) {
+              <li>
+                <a class="mono" [routerLink]="['/collection-files', r.id]">{{ r.fileName }}</a>
+                <app-file-status [file]="r" />
+              </li>
+            } @empty {
+              <li class="sub">Henüz cevap gelmedi.</li>
+            }
+          </ul>
+        </mat-card-content>
+      </mat-card>
+    }
+  </section>
+
+  @if (f.direction === 'INBOUND' && f.status !== 'FAILED') {
+    <mat-card appearance="outlined" class="results">
+      <mat-card-header>
+        <mat-card-title>Satırlar</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <mat-button-toggle-group
+          [value]="outcome()"
+          (change)="outcome.set($event.value)"
+          aria-label="Sonuç filtresi"
+        >
+          <mat-button-toggle [value]="null">Tümü</mat-button-toggle>
+          <mat-button-toggle value="COLLECTED">Tahsil edilen</mat-button-toggle>
+          <mat-button-toggle value="REJECTED">Reddedilen</mat-button-toggle>
+          <mat-button-toggle value="ERROR">Hatalı</mat-button-toggle>
+        </mat-button-toggle-group>
+
+        @if (results.error(); as message) {
+          <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+        }
+        <div class="table-scroll">
+          <table mat-table [dataSource]="results.rows()">
+            <ng-container matColumnDef="lineNo">
+              <th mat-header-cell *matHeaderCellDef>Sıra</th>
+              <td mat-cell *matCellDef="let r">{{ r.lineNo }}</td>
+            </ng-container>
+            <ng-container matColumnDef="policy">
+              <th mat-header-cell *matHeaderCellDef>Poliçe / taksit</th>
+              <td mat-cell *matCellDef="let r">
+                @if (r.policyId) {
+                  <a class="mono" [routerLink]="['/policies', r.policyId]">{{ r.policyNumber }}</a>
+                } @else {
+                  <span class="mono">{{ r.policyNumber }}</span>
+                }
+                · {{ r.installmentNo }}. taksit
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="amount">
+              <th mat-header-cell *matHeaderCellDef class="number">Tutar</th>
+              <td mat-cell *matCellDef="let r" class="number">
+                {{ r.amount | currency: 'TRY' : 'symbol-narrow' }}
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="code">
+              <th mat-header-cell *matHeaderCellDef>Kod</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="code">{{ r.resultCode || '—' }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="outcome">
+              <th mat-header-cell *matHeaderCellDef>Sonuç</th>
+              <td mat-cell *matCellDef="let r">
+                <span class="outcome" [class]="'outcome ' + r.outcome.toLowerCase()">
+                  <mat-icon aria-hidden="true">{{
+                    r.outcome === 'COLLECTED'
+                      ? 'check'
+                      : r.outcome === 'REJECTED'
+                        ? 'block'
+                        : 'warning'
+                  }}</mat-icon>
+                  {{ outcomeLabels[r.outcome] }}
+                </span>
+                @if (r.message && r.outcome !== 'REJECTED') {
+                  <div class="sub">{{ r.message }}</div>
+                }
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+            <tr class="mat-row" *matNoDataRow>
+              <td class="mat-cell message" [attr.colspan]="columns.length">
+                {{ results.loading() ? 'Yükleniyor…' : 'Satır yok.' }}
+              </td>
+            </tr>
+          </table>
+        </div>
+        <mat-paginator
+          [length]="results.page()?.totalElements ?? 0"
+          [pageIndex]="results.page()?.page ?? 0"
+          [pageSize]="results.page()?.size ?? 50"
+          [pageSizeOptions]="[50, 100]"
+          (page)="results.onPage($event)"
+        />
+      </mat-card-content>
+    </mat-card>
+  }
+}

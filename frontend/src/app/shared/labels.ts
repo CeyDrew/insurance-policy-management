@@ -67,6 +67,7 @@ export const PAYMENT_METHOD_LABELS = {
   CREDIT_CARD: 'Kredi kartı',
   BANK_TRANSFER: 'Havale / EFT',
   CASH: 'Nakit',
+  DIRECT_DEBIT: 'Otomatik ödeme',
 } as const;
 
 /** Options for mat-select, in declaration order. */

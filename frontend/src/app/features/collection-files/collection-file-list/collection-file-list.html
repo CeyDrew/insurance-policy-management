@@ -1,0 +1,148 @@
+<header class="page-header">
+  <div>
+    <h1>Tahsilat Dosyaları</h1>
+    <p class="subtitle">
+      Otomatik ödeme talimatlı taksitler için bankaya giden talep dosyaları ve bankadan dönen sonuç
+      dosyaları.
+    </p>
+  </div>
+  <div class="actions">
+    <input #fileInput type="file" accept=".txt,text/plain" hidden (change)="onFileInput($event)" />
+    <button mat-stroked-button (click)="fileInput.click()" [disabled]="working() !== null">
+      <mat-icon>upload_file</mat-icon> Sonuç dosyası yükle
+    </button>
+    <button mat-flat-button (click)="createRequest()" [disabled]="working() !== null">
+      <mat-icon>outbox</mat-icon> Talep dosyası üret
+    </button>
+  </div>
+</header>
+
+<mat-button-toggle-group
+  class="direction"
+  [value]="direction()"
+  (change)="direction.set($event.value)"
+  aria-label="Dosya yönü"
+>
+  <mat-button-toggle [value]="null">Tümü</mat-button-toggle>
+  <mat-button-toggle value="OUTBOUND">Talep dosyaları</mat-button-toggle>
+  <mat-button-toggle value="INBOUND">Sonuç dosyaları</mat-button-toggle>
+</mat-button-toggle-group>
+
+<mat-card appearance="outlined" class="table-card">
+  @if (list.loading() && !list.page()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (list.error(); as message) {
+    <div class="error-banner" role="alert"><mat-icon>error</mat-icon> {{ message }}</div>
+  }
+  <div class="table-scroll">
+    <table mat-table [dataSource]="list.rows()">
+      <ng-container matColumnDef="file">
+        <th mat-header-cell *matHeaderCellDef>Dosya</th>
+        <td mat-cell *matCellDef="let f">
+          <div class="file">
+            <mat-icon class="direction-icon" [attr.aria-label]="directionLabels[f.direction]">{{
+              f.direction === 'OUTBOUND' ? 'north_east' : 'south_west'
+            }}</mat-icon>
+            <div>
+              <a class="mono" [routerLink]="['/collection-files', f.id]">{{ f.fileName }}</a>
+              <div class="sub">
+                {{ directionLabels[f.direction] }} · {{ f.createdAt | date: 'dd.MM.yyyy HH:mm' }} ·
+                {{ f.createdBy }}
+              </div>
+            </div>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Durum</th>
+        <td mat-cell *matCellDef="let f">
+          <app-file-status [file]="f" />
+          @if (f.status === 'FAILED' && f.errorMessage) {
+            <div class="sub error-text">{{ f.errorMessage }}</div>
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="records">
+        <th mat-header-cell *matHeaderCellDef class="number">Satır / Tutar</th>
+        <td mat-cell *matCellDef="let f" class="number">
+          @if (f.recordCount !== null) {
+            {{ f.recordCount | number: '1.0-0' }}
+            <div class="sub">{{ f.totalAmount | currency: 'TRY' : 'symbol-narrow' : '1.2-2' }}</div>
+          } @else {
+            —
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="collected">
+        <th mat-header-cell *matHeaderCellDef class="number">Tahsil edilen</th>
+        <td mat-cell *matCellDef="let f" class="number">
+          @if (f.direction === 'INBOUND' && f.status !== 'FAILED') {
+            {{ f.collectedCount | number: '1.0-0' }}
+            <div class="sub">
+              {{ f.collectedAmount | currency: 'TRY' : 'symbol-narrow' : '1.2-2' }}
+            </div>
+          } @else {
+            —
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="rejected">
+        <th mat-header-cell *matHeaderCellDef class="number">Red / Hatalı</th>
+        <td mat-cell *matCellDef="let f" class="number">
+          @if (f.direction === 'INBOUND' && f.status !== 'FAILED') {
+            {{ f.rejectedCount | number: '1.0-0' }} /
+            {{ f.errorCount | number: '1.0-0' }}
+          } @else {
+            —
+          }
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef></th>
+        <td mat-cell *matCellDef="let f" class="row-actions">
+          @if (canSimulate(f)) {
+            <button
+              mat-button
+              (click)="simulate(f)"
+              [disabled]="working() !== null"
+              matTooltip="Demo: banka simülatörü bu talebe cevap dosyası üretir ve işler"
+            >
+              <mat-icon>account_balance</mat-icon> Banka cevabı
+            </button>
+          }
+          @if (f.interrupted) {
+            <button mat-button (click)="restart(f)" [disabled]="working() !== null">
+              <mat-icon>replay</mat-icon> Yeniden başlat
+            </button>
+          }
+          @if (f.status !== 'GENERATING') {
+            <button mat-icon-button (click)="download(f)" [attr.aria-label]="f.fileName + ' indir'">
+              <mat-icon>download</mat-icon>
+            </button>
+          }
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="columns"></tr>
+      <tr mat-row *matRowDef="let row; columns: columns"></tr>
+      <tr class="mat-row" *matNoDataRow>
+        <td class="mat-cell message" [attr.colspan]="columns.length">
+          Henüz tahsilat dosyası yok. "Talep dosyası üret" ile başlayın.
+        </td>
+      </tr>
+    </table>
+  </div>
+  <mat-paginator
+    [length]="list.page()?.totalElements ?? 0"
+    [pageIndex]="list.page()?.page ?? 0"
+    [pageSize]="list.page()?.size ?? 20"
+    [pageSizeOptions]="[20, 50]"
+    (page)="list.onPage($event)"
+  />
+</mat-card>
