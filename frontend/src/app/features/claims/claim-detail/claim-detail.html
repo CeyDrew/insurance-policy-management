@@ -203,6 +203,9 @@
                   >
                 </div>
               </li>
+            } @empty {
+              <!-- Seed data was loaded before the audit triggers existed. -->
+              <li class="empty">Bu dosya için kayıtlı durum değişikliği yok.</li>
             }
           </ol>
         </mat-card-content>
