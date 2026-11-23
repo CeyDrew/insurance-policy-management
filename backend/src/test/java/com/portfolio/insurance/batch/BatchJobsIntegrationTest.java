@@ -183,7 +183,7 @@ class BatchJobsIntegrationTest {
                 "policy_number;incident_date;description;estimated_amount;incident_city_plate",
                 number + ";" + incident + ";Arka tampon hasarı;12.500,50;34",                     // 2 ok
                 "TRF-1999-999999;" + incident + ";Bilinmeyen poliçe;1000",                         // 3 unknown policy
-                number + ";32.13.2026;Geçersiz tarih;1000",                                         // 4 bad date
+                number + ";31.02.2026;Geçersiz tarih;1000",                                         // 4 impossible date
                 number + ";" + TODAY.plusDays(3).format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy"))
                         + ";Gelecek tarih;1000",                                                    // 5 future date
                 number + ";" + incident + ";Negatif tutar;-5",                                      // 6 negative amount

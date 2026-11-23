@@ -9,6 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -25,8 +26,10 @@ import java.util.Map;
 class ClaimCsvProcessor implements ItemProcessor<ClaimCsvLine, ClaimImportItem> {
 
     static final String DELIMITER = ";";
+    /** STRICT: 31.11.2026 is rejected instead of being silently turned into 30.11.2026. */
     private static final List<DateTimeFormatter> DATE_FORMATS = List.of(
-            DateTimeFormatter.ofPattern("dd.MM.yyyy"), DateTimeFormatter.ISO_LOCAL_DATE);
+            DateTimeFormatter.ofPattern("dd.MM.uuuu").withResolverStyle(ResolverStyle.STRICT),
+            DateTimeFormatter.ISO_LOCAL_DATE);
     private static final BigDecimal MAX_AMOUNT = new BigDecimal("100000000");
     private static final int MAX_DESCRIPTION = 2000;
 
