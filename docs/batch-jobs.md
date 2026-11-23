@@ -263,6 +263,56 @@ Hacim büyüdüğünde aynı iş `overdueInstallmentPlsqlJob` ile yapılabilir. 
 PL/SQL prosedürü her dilimden sonra `COMMIT` eder (undo küçük kalsın diye). Bu yüzden tasklet Spring
 transaction'ı olmadan (`PROPAGATION_NOT_SUPPORTED`) çalışır.
 
+## Performans: 1 milyon satırlık banka sonuç dosyası
+
+### Veri seti
+
+`seed-performance.sql 300000` ile 300.000 poliçe ve 1.200.000 taksit üretildi. Talep dosyası vadesi gelen
+**1.068.134** taksiti içerdi. Banka simülatörünün cevabında 939.878 satır tahsil, 128.256 satır red
+(`51` 62.345, `54` 32.472, `57` 21.439, `91` 12.000), 0 hatalı satır vardı. İki ölçüm arasında
+`collection-perf-reset.sql` ile veri ilk haline döndürüldü. İkinci talep dosyası da aynı 1.068.134 satırı içerdi.
+
+```bash
+docker exec -it insurance-oracle sqlplus insurance/<şifre>@FREEPDB1 @/tmp/scripts/seed-performance.sql 300000
+# ekrandan: Talep dosyası üret -> Banka cevabı   (veya POST /api/collection-files/{id}/bank-answer?partitions=N)
+docker exec -it insurance-oracle sqlplus insurance/<şifre>@FREEPDB1 @/tmp/scripts/collection-perf-reset.sql
+```
+
+### Sonuç
+
+Ortam: Windows 11 dizüstü, Docker Desktop (WSL2, ~7,8 GB), Oracle Database Free 23, chunk 100.
+
+| Adım | Süre | Hız |
+|---|---|---|
+| Talep dosyası (`collectionRequestExportJob`, 1.068.134 satır, 10.682 commit) | 143 sn / 152 sn | ~7.200 satır/sn |
+| Sonuç dosyası doğrulama (dosyanın tamamı, trailer kontrolü) | 8,6 sn | ~124.000 satır/sn |
+| Sonuç uygulama, **1 partition** | **837,7 sn** (tamamı) | **~1.275 satır/sn** |
+| Sonuç uygulama, **4 partition** | 708 sn'de 705.800 satır (ölçüm burada durduruldu) | **~997 satır/sn** |
+
+4 partition bu ortamda tek thread'den **yaklaşık %22 yavaş** çıktı. Ölçüm tamamlanmadı, ama dört partition da
+eşit hızda (her biri ~175 bin satır) ilerliyordu, yani hız oranı sabitti.
+
+### Neden paralel daha hızlı değil?
+
+- **Darboğaz veritabanında.** Her satır PL/SQL'de birkaç kilit ve yazma demek: taksit ve poliçe kilidi, ödeme,
+  bildirim, sonuç satırı. Java tarafı (dosya okuma, JSON) toplam sürenin çok küçük bir kısmı.
+- **Oracle Database Free en fazla 2 CPU thread kullanır.** Dört worker bu iki thread için yarışır, araya bağlam
+  değişimi ve aynı index bloklarına eşzamanlı ekleme (sequence ile artan `PAYMENT`, `NOTIFICATION`,
+  `COLLECTION_RESULT` birincil anahtarları, sağ uç blok çekişmesi) girer.
+- Lisanslı bir Oracle'da (daha çok çekirdek, gerekirse sequence `CACHE`/scalable sequence, reverse-key veya hash
+  partitioned index) partition sayısı artırılarak ölçeklenir. Ayar bu yüzden kodda sabit değil:
+  `app.batch.collection.partitions` ve istek başına `partitions` parametresi.
+
+Bu ortam için doğru ayar 1 veya 2 partition'dır. Partitioning'in bu projedeki asıl kazancı, aralıkların
+birbirinden bağımsız commit edilmesi ve yeniden başlatılabilmesidir.
+
+### Ölçüm sırasında bulunan sorun
+
+`collection-perf-reset.sql` ilk denemede 25 dakikada bitmedi. `COLLECTION_RESULT.PAYMENT_ID` foreign key'inde
+index yoktu: silinen her `PAYMENT` satırı için Oracle `COLLECTION_RESULT`'ı baştan sona taradı. `V14` ile index
+eklendikten sonra 1,2 milyon bildirim, 1,2 milyon sonuç ve 940 bin ödeme satırının silinmesi ve 1,2 milyon
+taksitin güncellenmesi **438 saniye** sürdü. Kural: referans veren her foreign key kolonu indexlenir.
+
 ## Testler
 
 `BatchJobsIntegrationTest`, Spring Batch Test'in `JobOperatorTestUtils` sınıfıyla her job'ı Testcontainers Oracle
@@ -276,3 +326,13 @@ transaction'ı olmadan (`PROPAGATION_NOT_SUPPORTED`) çalışır.
 
 `BatchApiIntegrationTest` REST uçlarını test eder: asenkron çalıştırma ve durum sorgulama, geçersiz parametre,
 dosya yükleme, hata listesi, rapor indirme, yetki ve dosya yolu güvenliği.
+
+Banka tahsilat dosyaları için:
+
+- `BankFileTest`: alanların belgedeki konumlarda yazılması ve geri okunması, yanlış uzunlukta satırın reddi,
+  simülatör ve partition aralıkları.
+- `CollectionJobsIntegrationTest`: talep dosyasının kontrol toplamları; tahsil, red ve hatalı satırlar; trailer
+  hatasında hiçbir satırın işlenmemesi; aynı dosyanın ikinci kez uygulanamaması; 130. satırda yapay çökme sonrası
+  restart'ta tamamlanan partition'ın atlanması ve her taksitin tek kez ödenmesi.
+- `CollectionFileApiIntegrationTest`: ekranın kullandığı uçlar, simülatörle uçtan uca akış, mükerrer yükleme ve
+  yetki. `CollectionInboxPollerTest`: inbox klasöründen `processed/` ve `error/` klasörlerine taşıma.
