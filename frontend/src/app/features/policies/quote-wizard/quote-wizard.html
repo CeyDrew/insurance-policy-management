@@ -1,0 +1,248 @@
+<header class="page-header">
+  <a mat-icon-button routerLink="/policies" aria-label="Poliçe listesi"
+    ><mat-icon>arrow_back</mat-icon></a
+  >
+  <h1>Yeni teklif</h1>
+</header>
+
+<mat-card appearance="outlined">
+  <mat-stepper linear #stepper [orientation]="'horizontal'" class="stepper">
+    <!-- 1. Customer -->
+    <mat-step [stepControl]="customerForm" label="Müşteri">
+      <div class="step-body">
+        <mat-form-field class="search">
+          <mat-label>Müşteri ara</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input
+            matInput
+            [formControl]="customerSearch"
+            [matAutocomplete]="customerAuto"
+            placeholder="Ad, unvan veya TCKN/VKN (en az 2 karakter)"
+          />
+          <mat-autocomplete
+            #customerAuto="matAutocomplete"
+            [displayWith]="displayCustomer"
+            (optionSelected)="onCustomerSelected($event)"
+          >
+            @for (option of suggestions(); track option.id) {
+              <mat-option [value]="option">
+                <span>{{ option.displayName }}</span>
+                <small class="option-meta"
+                  >{{ option.identityNumber }} · {{ option.cityName }}</small
+                >
+              </mat-option>
+            }
+          </mat-autocomplete>
+        </mat-form-field>
+
+        @if (selectedCustomer(); as c) {
+          <div class="selected-customer">
+            <mat-icon>{{ c.customerType === 'INDIVIDUAL' ? 'person' : 'business' }}</mat-icon>
+            <div>
+              <strong>{{ c.displayName }}</strong>
+              <div class="muted">{{ c.nationalId ?? c.taxNumber }} · {{ c.cityName }}</div>
+            </div>
+          </div>
+        } @else {
+          <p class="muted">
+            Müşteri listede yoksa önce <a routerLink="/customers/new">yeni müşteri</a> oluşturun.
+          </p>
+        }
+      </div>
+      <div class="step-actions">
+        <button mat-flat-button matStepperNext [disabled]="!selectedCustomer()">Devam</button>
+      </div>
+    </mat-step>
+
+    <!-- 2. Product and insured object -->
+    <mat-step [stepControl]="productForm" label="Ürün ve sigortalı">
+      <form [formGroup]="productForm" class="step-body">
+        <mat-radio-group formControlName="product" class="products" aria-label="Ürün">
+          @for (product of products(); track product.id) {
+            <mat-radio-button
+              [value]="product"
+              [disabled]="!isProductAvailable(product)"
+              class="product-option"
+            >
+              <span class="product-label">
+                <mat-icon>{{ productIcons[product.code] }}</mat-icon>
+                <span>
+                  <strong>{{ product.name }}</strong>
+                  <small>{{ product.description }}</small>
+                  @if (!isProductAvailable(product)) {
+                    <small class="warn">Sadece bireysel müşterilere yapılır.</small>
+                  }
+                </span>
+              </span>
+            </mat-radio-button>
+          }
+        </mat-radio-group>
+
+        @switch (selectedProduct()?.assetType) {
+          @case ('VEHICLE') {
+            <div class="asset-row">
+              <mat-form-field class="grow">
+                <mat-label>Araç</mat-label>
+                <mat-select formControlName="vehicleId">
+                  @for (vehicle of vehicles.value() ?? []; track vehicle.id) {
+                    <mat-option [value]="vehicle.id">{{ vehicle.description }}</mat-option>
+                  }
+                </mat-select>
+                @if ((vehicles.value() ?? []).length === 0 && !vehicles.isLoading()) {
+                  <mat-hint>Müşterinin kayıtlı aracı yok, yeni araç ekleyin.</mat-hint>
+                }
+                <mat-error>Araç seçilmelidir.</mat-error>
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="addVehicle()">
+                <mat-icon>add</mat-icon> Araç ekle
+              </button>
+            </div>
+          }
+          @case ('PROPERTY') {
+            <div class="asset-row">
+              <mat-form-field class="grow">
+                <mat-label>Konut</mat-label>
+                <mat-select formControlName="propertyId">
+                  @for (property of properties.value() ?? []; track property.id) {
+                    <mat-option [value]="property.id">{{ property.description }}</mat-option>
+                  }
+                </mat-select>
+                @if ((properties.value() ?? []).length === 0 && !properties.isLoading()) {
+                  <mat-hint>Müşterinin kayıtlı konutu yok, yeni konut ekleyin.</mat-hint>
+                }
+                <mat-error>Konut seçilmelidir.</mat-error>
+              </mat-form-field>
+              <button mat-stroked-button type="button" (click)="addProperty()">
+                <mat-icon>add</mat-icon> Konut ekle
+              </button>
+            </div>
+          }
+          @case ('PERSON') {
+            <p class="muted">
+              Sigortalı, sigorta ettirenin kendisidir: {{ selectedCustomer()?.displayName }}.
+            </p>
+          }
+        }
+      </form>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Geri</button>
+        <button mat-flat-button matStepperNext>Devam</button>
+      </div>
+    </mat-step>
+
+    <!-- 3. Terms -->
+    <mat-step [stepControl]="termsForm" label="Şartlar">
+      <form [formGroup]="termsForm" class="step-body terms">
+        <mat-form-field>
+          <mat-label>Başlangıç tarihi</mat-label>
+          <input
+            matInput
+            [matDatepicker]="startPicker"
+            formControlName="startDate"
+            [min]="minStart"
+            [max]="maxStart"
+          />
+          <mat-datepicker-toggle matIconSuffix [for]="startPicker" />
+          <mat-datepicker #startPicker />
+          <mat-hint>Bugün ile {{ maxStart | date: 'dd.MM.yyyy' }} arası</mat-hint>
+          <mat-error>Geçerli bir başlangıç tarihi seçin.</mat-error>
+        </mat-form-field>
+        <mat-form-field>
+          <mat-label>Taksit sayısı</mat-label>
+          <mat-select formControlName="installmentCount">
+            @for (count of installmentOptions(); track count) {
+              <mat-option [value]="count">{{
+                count === 1 ? 'Peşin' : count + ' taksit'
+              }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+      </form>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious>Geri</button>
+        <button mat-flat-button matStepperNext (click)="calculate()">Teklif hesapla</button>
+      </div>
+    </mat-step>
+
+    <!-- 4. Quote -->
+    <mat-step label="Teklif">
+      <div class="step-body">
+        @if (working()) {
+          <mat-progress-bar mode="indeterminate" />
+        }
+        @if (error(); as message) {
+          <div class="error-banner" role="alert">
+            <mat-icon>error</mat-icon>
+            <span>{{ message }}</span>
+          </div>
+        }
+        @if (quote(); as q) {
+          <div class="quote">
+            <div class="quote-header">
+              <div>
+                <div class="muted">Teklif no</div>
+                <strong class="mono">{{ q.policyNumber }}</strong>
+              </div>
+              <div class="muted">Geçerlilik: {{ q.quoteValidUntil | date: 'dd.MM.yyyy' }}</div>
+            </div>
+            <dl class="quote-lines">
+              <div>
+                <dt>Ürün</dt>
+                <dd>{{ q.productName }}</dd>
+              </div>
+              <div>
+                <dt>Sigortalı</dt>
+                <dd>{{ q.insuredObject }}</dd>
+              </div>
+              <div>
+                <dt>Dönem</dt>
+                <dd>
+                  {{ q.startDate | date: 'dd.MM.yyyy' }} – {{ q.endDate | date: 'dd.MM.yyyy' }}
+                </dd>
+              </div>
+              @if (q.productCode === 'TRAFFIC' || q.productCode === 'CASCO') {
+                <div>
+                  <dt>Hasarsızlık basamağı</dt>
+                  <dd>{{ q.ncdStep }}</dd>
+                </div>
+              }
+              <div>
+                <dt>Net prim</dt>
+                <dd>{{ q.netPremium | currency }}</dd>
+              </div>
+              <div>
+                <dt>Vergi</dt>
+                <dd>{{ q.taxAmount | currency }}</dd>
+              </div>
+              <div class="total">
+                <dt>Brüt prim</dt>
+                <dd>{{ q.grossPremium | currency }}</dd>
+              </div>
+              @if (q.installmentCount > 1) {
+                <div>
+                  <dt>Taksit</dt>
+                  <dd>
+                    {{ q.installmentCount }} × ~{{ q.grossPremium / q.installmentCount | currency }}
+                  </dd>
+                </div>
+              }
+            </dl>
+          </div>
+        } @else if (!working() && !error()) {
+          <p class="muted">Teklif hesaplanıyor…</p>
+        }
+      </div>
+      <div class="step-actions">
+        <button mat-button matStepperPrevious [disabled]="working()">Geri</button>
+        @if (quote(); as q) {
+          <a mat-stroked-button [routerLink]="['/policies', q.id]">Teklifi kaydet ve çık</a>
+          <button mat-flat-button (click)="issue()" [disabled]="working()">
+            <mat-icon>task_alt</mat-icon> Poliçeleştir
+          </button>
+        } @else if (error()) {
+          <button mat-flat-button (click)="calculate()" [disabled]="working()">Tekrar dene</button>
+        }
+      </div>
+    </mat-step>
+  </mat-stepper>
+</mat-card>

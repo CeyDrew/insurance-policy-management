@@ -1,0 +1,176 @@
+@if ((policy.isLoading() && !policy.hasValue()) || busy()) {
+  <mat-progress-bar mode="indeterminate" />
+}
+
+@if (loadError(); as message) {
+  <div class="error-banner" role="alert">
+    <mat-icon>error</mat-icon>
+    <span>{{ message }}</span>
+  </div>
+  <a mat-button routerLink="/policies"><mat-icon>arrow_back</mat-icon> Poliçe listesine dön</a>
+}
+
+@if (policy.value(); as p) {
+  <header class="page-header">
+    <a mat-icon-button routerLink="/policies" aria-label="Poliçe listesi">
+      <mat-icon>arrow_back</mat-icon>
+    </a>
+    <div>
+      <h1 class="mono-title">{{ p.policyNumber }}</h1>
+      <span class="subtitle">{{ p.productName }}</span>
+    </div>
+    <app-status-badge [status]="p.status" />
+    <span class="spacer"></span>
+    @if (canManage && p.status === 'QUOTE') {
+      <button mat-flat-button (click)="issue(p)" [disabled]="busy() || quoteExpired()">
+        <mat-icon>task_alt</mat-icon> Poliçeleştir
+      </button>
+    }
+    @if (canManage && (p.status === 'ACTIVE' || p.status === 'SUSPENDED')) {
+      <button mat-stroked-button class="danger-outline" (click)="cancel(p)" [disabled]="busy()">
+        <mat-icon>block</mat-icon> İptal et
+      </button>
+    }
+  </header>
+
+  @if (p.status === 'QUOTE' && quoteExpired()) {
+    <div class="info-banner warning">
+      <mat-icon>schedule</mat-icon>
+      Bu teklifin geçerlilik süresi {{ p.quoteValidUntil | date: 'dd.MM.yyyy' }} tarihinde doldu.
+      Yeni teklif alın.
+    </div>
+  }
+  @if (p.status === 'CANCELLED') {
+    <div class="info-banner">
+      <mat-icon>info</mat-icon>
+      {{ p.cancelledAt | date: 'dd.MM.yyyy HH:mm' }} tarihinde iptal edildi: {{ p.cancelReason }}.
+      İade tutarı <strong>{{ p.refundAmount | currency }}</strong>.
+    </div>
+  }
+
+  <div class="layout">
+    <mat-card appearance="outlined" class="section-card">
+      <mat-card-content>
+        <dl class="facts">
+          <div>
+            <dt>Sigorta ettiren</dt>
+            <dd>
+              <a class="row-link" [routerLink]="['/customers', p.customerId]">{{
+                p.customerName
+              }}</a>
+            </dd>
+          </div>
+          <div>
+            <dt>TCKN / VKN</dt>
+            <dd class="mono">{{ p.customerIdentityNumber }}</dd>
+          </div>
+          <div class="wide-fact">
+            <dt>Sigortalı</dt>
+            <dd>{{ p.insuredObject }}</dd>
+          </div>
+          <div>
+            <dt>Başlangıç</dt>
+            <dd>{{ p.startDate | date: 'dd.MM.yyyy' }}</dd>
+          </div>
+          <div>
+            <dt>Bitiş</dt>
+            <dd>{{ p.endDate | date: 'dd.MM.yyyy' }}</dd>
+          </div>
+          @if (p.productCode === 'TRAFFIC' || p.productCode === 'CASCO') {
+            <div>
+              <dt>Hasarsızlık basamağı</dt>
+              <dd>{{ p.ncdStep }}. basamak</dd>
+            </div>
+          }
+          <div>
+            <dt>Acente</dt>
+            <dd>{{ p.agentName }}</dd>
+          </div>
+          @if (p.status === 'QUOTE') {
+            <div>
+              <dt>Teklif geçerlilik</dt>
+              <dd>{{ p.quoteValidUntil | date: 'dd.MM.yyyy' }}</dd>
+            </div>
+          } @else {
+            <div>
+              <dt>Tanzim</dt>
+              <dd>{{ p.issuedAt | date: 'dd.MM.yyyy HH:mm' }}</dd>
+            </div>
+          }
+          @if (p.renewedFromPolicyId) {
+            <div>
+              <dt>Önceki dönem</dt>
+              <dd>
+                <a class="row-link mono" [routerLink]="['/policies', p.renewedFromPolicyId]">{{
+                  p.renewedFromPolicyNumber
+                }}</a>
+              </dd>
+            </div>
+          }
+        </dl>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card appearance="outlined" class="section-card premium-card">
+      <mat-card-content>
+        <h2>Prim</h2>
+        <dl class="premium">
+          <div>
+            <dt>Net prim</dt>
+            <dd>{{ p.netPremium | currency }}</dd>
+          </div>
+          <div>
+            <dt>Vergi</dt>
+            <dd>{{ p.taxAmount | currency }}</dd>
+          </div>
+          <div class="total">
+            <dt>Brüt prim</dt>
+            <dd>{{ p.grossPremium | currency }}</dd>
+          </div>
+          <div>
+            <dt>Taksit</dt>
+            <dd>{{ p.installmentCount }} taksit</dd>
+          </div>
+        </dl>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <mat-card appearance="outlined" class="section-card">
+    <div class="section-header"><h2>Taksit planı</h2></div>
+    @if (p.installments.length === 0) {
+      <p class="empty">Taksit planı poliçe düzenlendiğinde oluşturulur.</p>
+    } @else {
+      <div class="table-scroll">
+        <table mat-table [dataSource]="p.installments">
+          <ng-container matColumnDef="installmentNo">
+            <th mat-header-cell *matHeaderCellDef>#</th>
+            <td mat-cell *matCellDef="let i">{{ i.installmentNo }}</td>
+          </ng-container>
+          <ng-container matColumnDef="dueDate">
+            <th mat-header-cell *matHeaderCellDef>Vade</th>
+            <td mat-cell *matCellDef="let i">{{ i.dueDate | date: 'dd.MM.yyyy' }}</td>
+          </ng-container>
+          <ng-container matColumnDef="amount">
+            <th mat-header-cell *matHeaderCellDef class="number">Tutar</th>
+            <td mat-cell *matCellDef="let i" class="number">{{ i.amount | currency }}</td>
+          </ng-container>
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Durum</th>
+            <td mat-cell *matCellDef="let i">
+              <app-status-badge [status]="i.status" kind="installment" />
+            </td>
+          </ng-container>
+          <ng-container matColumnDef="paidAt">
+            <th mat-header-cell *matHeaderCellDef>Ödeme</th>
+            <td mat-cell *matCellDef="let i">
+              {{ i.paidAt ? (i.paidAt | date: 'dd.MM.yyyy') : '—' }}
+            </td>
+          </ng-container>
+          <tr mat-header-row *matHeaderRowDef="installmentColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: installmentColumns"></tr>
+        </table>
+      </div>
+    }
+  </mat-card>
+}

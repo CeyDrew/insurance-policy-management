@@ -1,0 +1,146 @@
+@use '../../../shared/styles/form-page';
+
+.stepper {
+  background: transparent;
+}
+
+.step-body {
+  padding: 16px 0 8px;
+}
+
+.step-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+.search {
+  width: 100%;
+  max-width: 560px;
+}
+
+.option-meta {
+  margin-left: 8px;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.muted {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.warn {
+  color: var(--mat-sys-error);
+}
+
+.selected-customer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 560px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.products {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.product-option {
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.product-label {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+
+  mat-icon {
+    color: var(--mat-sys-primary);
+  }
+
+  span {
+    display: flex;
+    flex-direction: column;
+  }
+
+  small {
+    color: var(--mat-sys-on-surface-variant);
+  }
+}
+
+.asset-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+
+  .grow {
+    flex: 1 1 320px;
+  }
+
+  button {
+    margin-top: 8px;
+  }
+}
+
+.terms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 320px));
+  gap: 16px;
+}
+
+.quote {
+  max-width: 560px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.quote-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quote-lines {
+  margin: 0;
+
+  div {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 6px 0;
+  }
+
+  dt {
+    color: var(--mat-sys-on-surface-variant);
+  }
+
+  dd {
+    margin: 0;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .total {
+    border-top: 1px solid var(--mat-sys-outline-variant);
+    margin-top: 4px;
+    padding-top: 10px;
+    font: var(--mat-sys-title-large);
+
+    dt {
+      color: inherit;
+    }
+  }
+}

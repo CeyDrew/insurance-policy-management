@@ -1,0 +1,99 @@
+<header class="page-header">
+  <h1>Poliçeler</h1>
+  @if (canQuote) {
+    <a mat-flat-button routerLink="/quotes/new">
+      <mat-icon>request_quote</mat-icon>
+      Yeni teklif
+    </a>
+  }
+</header>
+
+<form class="filters" [formGroup]="filter">
+  <mat-form-field class="grow" subscriptSizing="dynamic">
+    <mat-label>Ara</mat-label>
+    <mat-icon matPrefix>search</mat-icon>
+    <input matInput formControlName="query" placeholder="Poliçe no, müşteri adı/unvanı, plaka" />
+  </mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Durum</mat-label>
+    <mat-select formControlName="status">
+      <mat-option [value]="null">Tümü</mat-option>
+      @for (option of statusOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+  <mat-form-field subscriptSizing="dynamic">
+    <mat-label>Ürün</mat-label>
+    <mat-select formControlName="productCode">
+      <mat-option [value]="null">Tümü</mat-option>
+      @for (option of productOptions; track option.value) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</form>
+
+<mat-card appearance="outlined" class="table-card">
+  @if (list.loading()) {
+    <mat-progress-bar mode="indeterminate" />
+  }
+  @if (list.error(); as error) {
+    <p class="message error">{{ error }}</p>
+  } @else {
+    <div class="table-scroll">
+      <table mat-table [dataSource]="list.rows()">
+        <ng-container matColumnDef="policyNumber">
+          <th mat-header-cell *matHeaderCellDef>Poliçe no</th>
+          <td mat-cell *matCellDef="let row">
+            <a class="row-link mono" [routerLink]="['/policies', row.id]">{{ row.policyNumber }}</a>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="productName">
+          <th mat-header-cell *matHeaderCellDef>Ürün</th>
+          <td mat-cell *matCellDef="let row">{{ row.productName }}</td>
+        </ng-container>
+        <ng-container matColumnDef="customerName">
+          <th mat-header-cell *matHeaderCellDef>Müşteri</th>
+          <td mat-cell *matCellDef="let row">
+            <a class="row-link" [routerLink]="['/customers', row.customerId]">{{
+              row.customerName
+            }}</a>
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="insuredObject">
+          <th mat-header-cell *matHeaderCellDef>Sigortalı</th>
+          <td mat-cell *matCellDef="let row">{{ row.insuredObject }}</td>
+        </ng-container>
+        <ng-container matColumnDef="period">
+          <th mat-header-cell *matHeaderCellDef>Dönem</th>
+          <td mat-cell *matCellDef="let row">
+            {{ row.startDate | date: 'dd.MM.yyyy' }} – {{ row.endDate | date: 'dd.MM.yyyy' }}
+          </td>
+        </ng-container>
+        <ng-container matColumnDef="grossPremium">
+          <th mat-header-cell *matHeaderCellDef class="number">Brüt prim</th>
+          <td mat-cell *matCellDef="let row" class="number">{{ row.grossPremium | currency }}</td>
+        </ng-container>
+        <ng-container matColumnDef="status">
+          <th mat-header-cell *matHeaderCellDef>Durum</th>
+          <td mat-cell *matCellDef="let row"><app-status-badge [status]="row.status" /></td>
+        </ng-container>
+        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+        <tr mat-row *matRowDef="let row; columns: columns"></tr>
+        <tr class="mat-row" *matNoDataRow>
+          <td class="message" [attr.colspan]="columns.length">
+            {{ list.loading() ? 'Yükleniyor…' : 'Kriterlere uyan poliçe bulunamadı.' }}
+          </td>
+        </tr>
+      </table>
+    </div>
+    <mat-paginator
+      [length]="list.page()?.totalElements ?? 0"
+      [pageIndex]="list.page()?.page ?? 0"
+      [pageSize]="list.page()?.size ?? 20"
+      [pageSizeOptions]="[10, 20, 50]"
+      (page)="list.onPage($event)"
+    />
+  }
+</mat-card>
