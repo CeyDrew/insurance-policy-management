@@ -57,6 +57,7 @@ app:
         policyExpirationJob: 0 15 1 * * *
         policyRenewalJob: 0 30 1 * * *
         monthlyProductionReportJob: 0 0 6 1 * *
+        dashboardRefresh: 0 45 1 * * *
 
   claims:
     document-dir: ${CLAIM_DOCUMENT_DIR:./data/claim-documents}
