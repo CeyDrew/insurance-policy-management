@@ -15,7 +15,10 @@ import { errorMessage } from '../../../core/http/problem-detail';
 import { fromIsoDate, today } from '../../../core/util/dates';
 import { StatusBadge } from '../../../shared/status-badge/status-badge';
 import { CancelDialog, CancelDialogData } from '../cancel-dialog/cancel-dialog';
-import { Policy } from '../policy.models';
+import { Installment, Policy } from '../policy.models';
+import { ClaimService } from '../../claims/claim.service';
+import { PaymentDialog } from '../../payments/payment-dialog/payment-dialog';
+import { PaymentResult, PaymentTarget } from '../../payments/payment.models';
 import { PolicyService } from '../policy.service';
 
 @Component({
@@ -40,6 +43,7 @@ export class PolicyDetail {
   private readonly policies = inject(PolicyService);
   private readonly dialog = inject(MatDialog);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly claims = inject(ClaimService);
 
   protected readonly canManage = inject(AuthService).hasRole('ADMIN', 'AGENT');
   protected readonly busy = signal(false);
@@ -49,7 +53,25 @@ export class PolicyDetail {
     'amount',
     'status',
     'paidAt',
+    'actions',
   ];
+  protected readonly claimColumns = [
+    'claimNumber',
+    'status',
+    'incidentDate',
+    'estimatedAmount',
+    'paidAmount',
+  ];
+
+  /** Claims of this policy (first page is plenty for one policy). */
+  protected readonly claimsOfPolicy = rxResource({
+    params: () => this.id(),
+    stream: ({ params }) =>
+      this.claims.search(
+        { query: '', status: null, mine: false, policyId: params },
+        { page: 0, size: 50 },
+      ),
+  });
 
   protected readonly policy = rxResource({
     params: () => this.id(),
@@ -69,6 +91,35 @@ export class PolicyDetail {
 
   protected issue(policy: Policy): void {
     this.run(this.policies.issue(policy.id), 'Poliçe düzenlendi.');
+  }
+
+  protected isPayable(installment: Installment): boolean {
+    return installment.status === 'PENDING' || installment.status === 'OVERDUE';
+  }
+
+  protected collect(policy: Policy, installment: Installment): void {
+    const target: PaymentTarget = {
+      installmentId: installment.id,
+      installmentNo: installment.installmentNo,
+      policyNumber: policy.policyNumber,
+      customerName: policy.customerName,
+      dueDate: installment.dueDate,
+      amount: installment.amount,
+    };
+    this.dialog
+      .open(PaymentDialog, { data: target })
+      .afterClosed()
+      .pipe(filter((result): result is PaymentResult => !!result))
+      .subscribe((result) => {
+        this.policy.reload();
+        this.snackBar.open(
+          result.policyReactivated
+            ? 'Tahsil edildi. Poliçe yeniden yürürlüğe girdi.'
+            : `Tahsil edildi (${result.referenceNo}).`,
+          undefined,
+          { duration: 5000 },
+        );
+      });
   }
 
   protected cancel(policy: Policy): void {
