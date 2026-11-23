@@ -50,6 +50,18 @@ app:
     suspend-after-overdue: 2
     import-dir: ${BATCH_IMPORT_DIR:./data/imports}
     report-dir: ${BATCH_REPORT_DIR:./data/reports}
+    collection:
+      # outbound/, inbound/ and the polled inbox/ (with processed/ and error/) live under this directory
+      dir: ${BATCH_COLLECTION_DIR:./data/collections}
+      bank-code: "0099"
+      # installments due within this many days of the run date go into the request file
+      days-ahead: 7
+      # parallel partitions of the result import (1 = single thread)
+      partitions: 4
+      poll-inbox: ${BATCH_COLLECTION_POLL_INBOX:false}
+      poll-interval: 10s
+      # fault injection for restart demos: the import crashes when it reaches this detail line (0 = off)
+      fail-at-line: 0
     scheduling:
       enabled: ${BATCH_SCHEDULING_ENABLED:false}
       cron:

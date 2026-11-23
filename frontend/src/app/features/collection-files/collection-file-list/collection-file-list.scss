@@ -1,0 +1,63 @@
+@use '../../../shared/styles/list-page';
+
+.page-header {
+  align-items: flex-start;
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}
+
+.subtitle {
+  margin: 4px 0 0;
+  max-width: 640px;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}
+
+.direction {
+  margin-bottom: 16px;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px;
+  padding: 12px;
+  border-radius: 8px;
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  a {
+    color: var(--mat-sys-primary);
+    text-decoration: none;
+
+    &:hover {
+      text-decoration: underline;
+    }
+  }
+}
+
+.direction-icon {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.error-text {
+  max-width: 280px;
+  color: var(--mat-sys-error);
+  white-space: normal;
+}
+
+.row-actions {
+  text-align: right;
+  white-space: nowrap;
+}

@@ -24,7 +24,13 @@ enum BatchJobCatalog {
             List.of(BatchJobs.PARAM_INPUT_FILE)),
     MONTHLY_PRODUCTION_REPORT(BatchJobs.MONTHLY_PRODUCTION_REPORT, "Aylık üretim raporu",
             "Ay içinde tanzim edilen poliçelerin ürün ve acente bazlı prim üretimini Excel'e yazar.",
-            List.of(BatchJobs.PARAM_MONTH));
+            List.of(BatchJobs.PARAM_MONTH)),
+    COLLECTION_REQUEST_EXPORT(BatchJobs.COLLECTION_REQUEST_EXPORT, "Banka tahsilat talebi",
+            "Vadesi yaklaşan taksitler için bankaya gönderilecek sabit uzunluklu tahsilat talep dosyasını üretir.",
+            List.of(BatchJobs.PARAM_RUN_DATE)),
+    COLLECTION_RESULT_IMPORT(BatchJobs.COLLECTION_RESULT_IMPORT, "Banka tahsilat sonucu",
+            "Bankanın sonuç dosyasını trailer kontrolüyle doğrular, paralel bölümlerle PL/SQL üzerinden işler.",
+            List.of(BatchJobs.PARAM_INPUT_FILE));
 
     private final String jobName;
     private final String title;

@@ -112,6 +112,29 @@ export const SHELL_ROUTES: Routes = [
           ),
       },
       {
+        path: 'collection-files',
+        canActivate: [roleGuard],
+        data: { roles: ['ADMIN'] },
+        children: [
+          {
+            path: '',
+            title: 'Tahsilat dosyaları',
+            loadComponent: () =>
+              import('../../features/collection-files/collection-file-list/collection-file-list').then(
+                (m) => m.CollectionFileList,
+              ),
+          },
+          {
+            path: ':id',
+            title: 'Tahsilat dosyası',
+            loadComponent: () =>
+              import('../../features/collection-files/collection-file-detail/collection-file-detail').then(
+                (m) => m.CollectionFileDetail,
+              ),
+          },
+        ],
+      },
+      {
         path: 'quotes/new',
         title: 'Yeni teklif',
         canActivate: [roleGuard],

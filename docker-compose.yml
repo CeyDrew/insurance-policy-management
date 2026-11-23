@@ -36,6 +36,8 @@ services:
       APP_USER_PASSWORD: ${APP_USER_PASSWORD:?set APP_USER_PASSWORD in .env}
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
       BATCH_SCHEDULING_ENABLED: ${BATCH_SCHEDULING_ENABLED:-true}
+      # result files dropped into /app/data/collections/inbox are imported automatically
+      BATCH_COLLECTION_POLL_INBOX: ${BATCH_COLLECTION_POLL_INBOX:-true}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     volumes:

@@ -57,6 +57,11 @@ Hepsinin şifresi `Demo123!` — giriş ekranında rol butonuna tıklayınca ala
 - **Batch işleri (Spring Batch):** Gecikme işaretleme ve askıya alma, poliçe süresi dolumu, yenileme teklifi
   üretimi, CSV'den toplu hasar ihbarı, aylık Excel üretim raporu. İzleme ekranından başlatma, adım
   istatistikleri, hatalı satırlar, rapor indirme.
+- **Banka tahsilat dosyaları:** Otomatik ödeme talimatlı taksitler için sabit uzunluklu talep dosyası üretimi,
+  bankanın sonuç dosyasını trailer kontrolüyle doğrulama, satırları paralel bölümlerle PL/SQL'de uygulama
+  (tahsil / red / hatalı), mükerrer dosya engeli, yarıda kalan işi kaldığı yerden sürdürme, `inbox/`
+  klasörünü izleme. Demo için banka simülatörü. 1 milyon satırlık dosyayla ölçüldü. Format:
+  [docs/bank-file-format.md](docs/bank-file-format.md)
 - **Gösterge paneli:** KPI'lar, aylık prim üretimi, ürün bazında hasar/prim oranı, acente performansı.
   Oracle view'ları ve gece yenilenen materialized view'dan beslenir.
 - **Güvenlik:** JWT access token + dönen refresh token, rol bazlı yetki (ekran ve API), RFC 7807 hata formatı.
@@ -111,10 +116,10 @@ flowchart LR
 
 | Alan | Projede nerede |
 |---|---|
-| **PL/SQL** | Prim/iade/hasarsızlık paketleri ([`R__2`](backend/src/main/resources/db/migration/R__2_pkg_premium.sql)–[`R__7`](backend/src/main/resources/db/migration/R__7_pkg_payment.sql)), audit trigger'ları (JSON), `BULK COLLECT`/`FORALL` ile toplu işlem ([`R__5`](backend/src/main/resources/db/migration/R__5_pkg_batch.sql)), raporlama view'ları ve materialized view ([`R__8`](backend/src/main/resources/db/migration/R__8_reporting_views.sql)) |
+| **PL/SQL** | Prim/iade/hasarsızlık paketleri ([`R__2`](backend/src/main/resources/db/migration/R__2_pkg_premium.sql)–[`R__7`](backend/src/main/resources/db/migration/R__7_pkg_payment.sql)), audit trigger'ları (JSON), `BULK COLLECT`/`FORALL` ile toplu işlem ([`R__5`](backend/src/main/resources/db/migration/R__5_pkg_batch.sql)), raporlama view'ları ve materialized view ([`R__8`](backend/src/main/resources/db/migration/R__8_reporting_views.sql)), `JSON_TABLE` ile chunk başına tek çağrıda banka sonucu uygulama ([`R__9`](backend/src/main/resources/db/migration/R__9_pkg_collection.sql)) |
 | **Java + Spring Boot** | REST API, Spring Security (JWT), JPA + MapStruct, `SimpleJdbcCall` ile PL/SQL entegrasyonu, ProblemDetail hata yönetimi, Testcontainers testleri |
 | **Angular** | Standalone component'ler, signals/`rxResource`, reactive forms, interceptor ile token yenileme, rol bazlı route guard, Chart.js dashboard |
-| **Batch süreçleri** | 6 Spring Batch job'ı (retry/skip, idempotent), cron zamanlama, izleme ekranı; Java ve PL/SQL yaklaşımının 220 bin satırlık ölçümü |
+| **Batch süreçleri** | 8 Spring Batch job'ı (retry/skip, idempotent, restart), partitioning, sabit uzunluklu dosya okuma/yazma (`FixedLengthTokenizer`, `FormatterLineAggregator`, header/trailer callback), cron ve klasör izleme, izleme ekranı; 220 bin ve 1 milyon satırlık ölçümler |
 | **Dokümantasyon ve süreç** | ADR'ler, ER diyagramı, PL/SQL ve batch dokümantasyonu, faz faz küçük commit geçmişi, CI |
 | **Sigorta alan bilgisi** | Tarife bazlı prim, hasarsızlık basamağı, gün esaslı iade, kazanılmış prim, muallak hasar, hasar/prim oranı |
 

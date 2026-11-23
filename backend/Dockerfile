@@ -23,7 +23,8 @@ USER app
 ENV TZ=Europe/Istanbul \
     CLAIM_DOCUMENT_DIR=/app/data/claim-documents \
     BATCH_IMPORT_DIR=/app/data/imports \
-    BATCH_REPORT_DIR=/app/data/reports
+    BATCH_REPORT_DIR=/app/data/reports \
+    BATCH_COLLECTION_DIR=/app/data/collections
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --start-period=60s --retries=12 \
     CMD bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080 && printf "GET /actuator/health HTTP/1.0\r\n\r\n" >&3 && grep -q UP <&3'

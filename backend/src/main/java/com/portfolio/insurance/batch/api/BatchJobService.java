@@ -26,6 +26,7 @@ import org.springframework.batch.core.repository.JobRepository;
 import org.springframework.batch.core.step.StepExecution;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
+import org.springframework.core.task.SyncTaskExecutor;
 import org.springframework.core.task.VirtualThreadTaskExecutor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -89,6 +90,7 @@ public class BatchJobService {
     private final Map<String, Job> jobs;
     private final JobRepository jobRepository;
     private final TaskExecutorJobOperator asyncOperator;
+    private final TaskExecutorJobOperator syncOperator;
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final BatchProperties properties;
@@ -112,6 +114,13 @@ public class BatchJobService {
         this.asyncOperator.setJobRegistry(jobRegistry);
         this.asyncOperator.setTaskExecutor(new VirtualThreadTaskExecutor("batch-"));
         this.asyncOperator.afterPropertiesSet();
+
+        // the inbox poller waits for the import to finish before it moves the file
+        this.syncOperator = new TaskExecutorJobOperator();
+        this.syncOperator.setJobRepository(jobRepository);
+        this.syncOperator.setJobRegistry(jobRegistry);
+        this.syncOperator.setTaskExecutor(new SyncTaskExecutor());
+        this.syncOperator.afterPropertiesSet();
     }
 
     public List<JobSummary> listJobs() {
@@ -130,6 +139,9 @@ public class BatchJobService {
     public ExecutionSummary launch(String jobName, Map<String, String> parameters, String launchedBy) {
         if (BatchJobs.CLAIM_IMPORT.equals(jobName)) {
             throw new BusinessException("UPLOAD_REQUIRED", "Hasar içe aktarma için CSV dosyası yükleyin.");
+        }
+        if (BatchJobs.COLLECTION_RESULT_IMPORT.equals(jobName)) {
+            throw new BusinessException("UPLOAD_REQUIRED", "Banka sonuç dosyasını Tahsilat Dosyaları ekranından yükleyin.");
         }
         return start(getJob(jobName), buildParameters(jobName, parameters == null ? Map.of() : parameters, launchedBy));
     }
@@ -163,6 +175,44 @@ public class BatchJobService {
                 .addLocalDateTime(BatchJobs.PARAM_LAUNCHED_AT, LocalDateTime.now(clock))
                 .toJobParameters();
         return start(getJob(BatchJobs.CLAIM_IMPORT), parameters);
+    }
+
+    /**
+     * Starts collectionResultImportJob on a stored result file. The file's hash is the only identifying parameter,
+     * so a file that has already been applied cannot start a second job instance.
+     *
+     * @param waitForCompletion run on the caller's thread (inbox poller) instead of in the background
+     */
+    public ExecutionSummary importCollectionResult(Path file, String originalName, String fileHash, Integer partitions,
+                                                   String launchedBy, boolean waitForCompletion) {
+        JobParametersBuilder builder = new JobParametersBuilder()
+                .addString(BatchJobs.PARAM_FILE_HASH, fileHash)
+                .addString(BatchJobs.PARAM_INPUT_FILE, file.toAbsolutePath().toString(), false)
+                .addString(BatchJobs.PARAM_ORIGINAL_FILE_NAME, originalName, false)
+                .addString(BatchJobs.PARAM_LAUNCHED_BY, launchedBy, false)
+                .addLocalDateTime(BatchJobs.PARAM_LAUNCHED_AT, LocalDateTime.now(clock), false);
+        if (partitions != null) {
+            builder.addLong(BatchJobs.PARAM_PARTITIONS, partitions.longValue(), false);
+        }
+        Job job = getJob(BatchJobs.COLLECTION_RESULT_IMPORT);
+        return waitForCompletion ? startWith(syncOperator, job, builder.toJobParameters())
+                : start(job, builder.toJobParameters());
+    }
+
+    /** Resumes a failed or stopped execution from where it stopped. */
+    public ExecutionSummary restart(long executionId) {
+        JobExecution execution = getExecution(executionId);
+        if (execution.getStatus().isRunning()) {
+            throw new BusinessException("JOB_ALREADY_RUNNING", "Bu iş zaten çalışıyor. Bitmesini bekleyin.");
+        }
+        try {
+            JobExecution restarted = asyncOperator.restart(execution);
+            log.info("Restarted execution {} of {} as {}", executionId, restarted.getJobInstance().getJobName(),
+                    restarted.getId());
+            return toSummary(restarted);
+        } catch (JobRestartException e) {
+            throw new BusinessException("JOB_RESTART_FAILED", "İş yeniden başlatılamadı: " + e.getMessage());
+        }
     }
 
     public PageResponse<ExecutionSummary> executions(String jobName, int page, int size) {
@@ -230,16 +280,22 @@ public class BatchJobService {
     }
 
     private ExecutionSummary start(Job job, JobParameters parameters) {
+        return startWith(asyncOperator, job, parameters);
+    }
+
+    private ExecutionSummary startWith(TaskExecutorJobOperator operator, Job job, JobParameters parameters) {
         if (!jobRepository.findRunningJobExecutions(job.getName()).isEmpty()) {
             throw new BusinessException("JOB_ALREADY_RUNNING", "Bu iş zaten çalışıyor. Bitmesini bekleyin.");
         }
         try {
-            JobExecution execution = asyncOperator.start(job, parameters);
+            JobExecution execution = operator.start(job, parameters);
             log.info("Launched {} as execution {} with {}", job.getName(), execution.getId(), parameters);
             return toSummary(execution);
         } catch (JobExecutionAlreadyRunningException e) {
             throw new BusinessException("JOB_ALREADY_RUNNING", "Bu iş zaten çalışıyor. Bitmesini bekleyin.");
-        } catch (JobInstanceAlreadyCompleteException | JobRestartException | InvalidJobParametersException e) {
+        } catch (JobInstanceAlreadyCompleteException e) {
+            throw new BusinessException("JOB_ALREADY_COMPLETE", "Bu parametrelerle iş zaten başarıyla tamamlanmış.");
+        } catch (JobRestartException | InvalidJobParametersException e) {
             throw new BusinessException("JOB_LAUNCH_FAILED", "İş başlatılamadı: " + e.getMessage());
         }
     }

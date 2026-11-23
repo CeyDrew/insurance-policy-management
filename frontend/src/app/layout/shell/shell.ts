@@ -28,6 +28,12 @@ const NAV_ITEMS: NavItem[] = [
   { label: 'Yeni Teklif', icon: 'request_quote', route: '/quotes/new', roles: ['ADMIN', 'AGENT'] },
   { label: 'Hasarlar', icon: 'car_crash', route: '/claims', roles: [] },
   { label: 'Tahsilat', icon: 'payments', route: '/collections', roles: ['ADMIN', 'AGENT'] },
+  {
+    label: 'Tahsilat Dosyaları',
+    icon: 'account_balance',
+    route: '/collection-files',
+    roles: ['ADMIN'],
+  },
   { label: 'Batch İşleri', icon: 'pending_actions', route: '/batch', roles: ['ADMIN'] },
   { label: 'Kullanıcılar', icon: 'manage_accounts', route: '/users', roles: ['ADMIN'] },
 ];

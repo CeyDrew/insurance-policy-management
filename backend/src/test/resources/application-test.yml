@@ -6,5 +6,7 @@ app:
   batch:
     import-dir: ${java.io.tmpdir}/insurance-test/imports
     report-dir: ${java.io.tmpdir}/insurance-test/reports
+    collection:
+      dir: ${java.io.tmpdir}/insurance-test/collections
   claims:
     document-dir: ${java.io.tmpdir}/insurance-test/claim-documents
